@@ -66,6 +66,7 @@ export class InteractionEngine {
                 // Disable global controls so we don't rotate the camera while rotating the cluster
                 if (this.globalControls) {
                     this.globalControls.enabled = false;
+                    this.globalControls.autoRotate = false; // FORCE OFF
                 }
             }
         } else {

@@ -121,15 +121,26 @@ export class AnimationEngine {
             children.forEach(child => {
                 if (!child.pointCloud || !child.group.visible) return;
 
-                // Animate Position: Quadratic Bezier curve feel?
-                // For simplicity, we'll tween position. 
-                // If we want the 'curve', we can do it in update() but linear lerp is often okay.
-                // Let's do a direct move for now.
+                // Calculate a mid-point for the Bezier curve
+                // Lift 'y' slightly to create an arc, or 'z' if we want depth-arcing.
+                // Since we are in a 2D slab (x,y), let's arc in Y or Z.
+                // Design doc suggests: "mid.y += 0.3 * medianRadius; // small lift arc"
+                const start = child.group.position.clone();
+                const end = parent.slabPosition.clone();
+                const mid = start.clone().lerp(end, 0.5);
                 
+                // In layout: Root is at Y=0, Children at Y=-LEVEL_HEIGHT.
+                // So Children move UP (+Y) to Parent.
+                // Let's arc slightly "out" (Z) but much less than before.
+                mid.z += 2.0; // Reduced from 5.0. Subtle "pop" forward.
+
                 this.addTween({
+                    type: 'bezier', // Mark as bezier
                     target: child.group.position,
-                    to: parent.slabPosition.clone(), // Move to parent
-                    duration: 1.0,
+                    start: start,
+                    end: end,
+                    control: mid,
+                    duration: 1.5, // Slower merge for better visibility
                     ease: this.easeInOutCubic
                 });
 
@@ -137,15 +148,11 @@ export class AnimationEngine {
                     target: child.pointCloud.material,
                     property: 'opacity',
                     to: 0,
-                    duration: 1.0,
+                    duration: 1.5,
                     ease: this.easeQuadIn,
                     onComplete: () => {
                         child.group.visible = false;
                         child.pointCloud.visible = false;
-                        // Reset position for next time (optional, but good for sanity)
-                        // child.group.position.copy(child.slabPosition); 
-                        // Wait, if we reset immediately, it might jump if we scrub back quickly. 
-                        // Better to leave it or handle in Backward.
                     }
                 });
             });
@@ -197,11 +204,12 @@ export class AnimationEngine {
     }
 
     addTween(params) {
-        // params: { target, property (opt), to (val or vec3), duration, ease, onComplete }
+        // params: { target, property (opt), to (val or vec3), duration, ease, onComplete, type, start, end, control }
         this.activeTweens.push({
             ...params,
             elapsed: 0,
-            start: params.property ? params.target[params.property] : params.target.clone()
+            // If it's not a bezier, assume standard linear/prop tween
+            start: params.type === 'bezier' ? params.start : (params.property ? params.target[params.property] : params.target.clone())
         });
     }
 
@@ -213,11 +221,28 @@ export class AnimationEngine {
             
             if (tween.ease) progress = tween.ease(progress);
             
-            if (tween.property) {
+            if (tween.type === 'bezier') {
+                // Quadratic Bezier: (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
+                const t = progress;
+                const invT = 1 - t;
+                
+                // We need to calculate this manually for the vector
+                const p0 = tween.start;
+                const p1 = tween.control;
+                const p2 = tween.end;
+                
+                // Fix: Ensure target is a Vector3 before assigning properties
+                if (tween.target && typeof tween.target.x !== 'undefined') {
+                    tween.target.x = (invT * invT * p0.x) + (2 * invT * t * p1.x) + (t * t * p2.x);
+                    tween.target.y = (invT * invT * p0.y) + (2 * invT * t * p1.y) + (t * t * p2.y);
+                    tween.target.z = (invT * invT * p0.z) + (2 * invT * t * p1.z) + (t * t * p2.z);
+                }
+                
+            } else if (tween.property) {
                 // Scalar tween
                 tween.target[tween.property] = tween.start + (tween.to - tween.start) * progress;
             } else {
-                // Vector3 tween
+                // Vector3 tween (linear)
                 tween.target.lerpVectors(tween.start, tween.to, progress);
             }
 

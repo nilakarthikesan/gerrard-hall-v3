@@ -17,7 +17,7 @@ class App {
         this.container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x111111); // Dark gray/black
+        this.scene.background = new THREE.Color(0xffffff); // White background
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -33,6 +33,15 @@ class App {
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
+        this.orbitControls.autoRotate = false; 
+        this.orbitControls.autoRotateSpeed = 0.0; // Force speed to 0
+        
+        // Ensure it stays off
+        this.orbitControls.addEventListener('change', () => {
+            if (this.orbitControls.autoRotate) {
+                this.orbitControls.autoRotate = false;
+            }
+        });
         
         // Lights
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -92,46 +101,95 @@ class App {
     }
 
     async start() {
-        this.dataLoader.onProgress = (loaded, total) => {
-            this.ui.loadingText.textContent = `Loading Clusters... ${loaded}/${total}`;
-        };
+        try {
+            this.dataLoader.onProgress = (loaded, total) => {
+                this.ui.loadingText.textContent = `Loading Clusters... ${loaded}/${total}`;
+            };
 
-        const clusters = await this.dataLoader.load();
-        
-        // Add all cluster groups to world
-        for (const cluster of clusters.values()) {
-            this.worldGroup.add(cluster.group);
+            const clusters = await this.dataLoader.load();
+            
+            if (clusters.size === 0) {
+                throw new Error("No clusters loaded. Check console/network.");
+            }
+
+            // Add all cluster groups to world
+            for (const cluster of clusters.values()) {
+                this.worldGroup.add(cluster.group);
+            }
+
+            // 1. Layout
+            this.layoutEngine = new LayoutEngine(clusters);
+            this.layoutEngine.computeLayout();
+
+            // Fit camera to layout bounds
+            if (this.layoutEngine.bounds) {
+                const b = this.layoutEngine.bounds;
+                const maxDim = Math.max(b.width, b.height);
+                
+                // Calculate distance needed to fit the bounding sphere
+                // Vertical FOV is 60 degrees.
+                // tan(theta/2) = (height/2) / dist
+                // dist = (height/2) / tan(theta/2)
+                
+                const fov = 60;
+                const aspect = window.innerWidth / window.innerHeight;
+                
+                // Check if we are limited by width or height
+                let dist;
+                if (aspect >= 1) {
+                    // Landscape: Height is the constraint usually, unless width is huge
+                    // But let's be safe and fit the larger dimension into the vertical FOV
+                    // Actually, if width is much larger than height, we need to fit width into horizontal FOV
+                    
+                    // Fit height first
+                    const distH = (b.height / 2) / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+                    
+                    // Fit width (convert vert FOV to horiz FOV estimate or just divide by aspect)
+                    const distW = (b.width / 2) / (aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+                    
+                    dist = Math.max(distH, distW);
+                } else {
+                    // Portrait
+                    const distH = (b.height / 2) / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+                    const distW = (b.width / 2) / (aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+                    dist = Math.max(distH, distW);
+                }
+
+                // REDUCED PADDING from 1.2 to 0.8 to zoom in closer
+                this.camera.position.set(0, 0, dist * 0.8); 
+                this.orbitControls.target.set(0, 0, 0);
+                this.orbitControls.update();
+            }
+
+            // 2. Animation Timeline
+            this.animationEngine = new AnimationEngine(clusters);
+            this.events = this.animationEngine.initTimeline();
+            this.currentEventIndex = 0;
+
+            // 3. Interaction
+            this.interactionEngine = new InteractionEngine(
+                this.camera, 
+                this.renderer.domElement, 
+                clusters, 
+                this.orbitControls
+            );
+
+            // 4. Camera
+            this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
+
+            // Initial State: All Hidden, apply event 0 (or just start empty?)
+            // Let's show the first event
+            this.animationEngine.applyEventInstant(0);
+            this.updateUI();
+
+            this.ui.loading.style.display = 'none';
+            
+            // Start Loop
+            this.animate();
+        } catch (err) {
+            console.error("App Start Error:", err);
+            this.ui.loadingText.innerHTML = `<span style="color: #ff4444">Error starting app:<br>${err.message}</span>`;
         }
-
-        // 1. Layout
-        this.layoutEngine = new LayoutEngine(clusters);
-        this.layoutEngine.computeLayout();
-
-        // 2. Animation Timeline
-        this.animationEngine = new AnimationEngine(clusters);
-        this.events = this.animationEngine.initTimeline();
-        this.currentEventIndex = 0;
-
-        // 3. Interaction
-        this.interactionEngine = new InteractionEngine(
-            this.camera, 
-            this.renderer.domElement, 
-            clusters, 
-            this.orbitControls
-        );
-
-        // 4. Camera
-        this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
-
-        // Initial State: All Hidden, apply event 0 (or just start empty?)
-        // Let's show the first event
-        this.animationEngine.applyEventInstant(0);
-        this.updateUI();
-
-        this.ui.loading.style.display = 'none';
-        
-        // Start Loop
-        this.animate();
     }
 
     step(direction) {

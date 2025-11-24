@@ -80,7 +80,7 @@ export class DataLoader {
 
     async loadPointCloud(path) {
         try {
-            const fullPath = `../data/gerrard-hall/results/${path}`;
+            const fullPath = `data/gerrard-hall/results/${path}`;
             const response = await fetch(`${fullPath}/points3D.txt`);
             if (!response.ok) throw new Error(`Failed to fetch ${fullPath}`);
             const text = await response.text();
@@ -111,8 +111,40 @@ export class DataLoader {
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
                 geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
                 
+                // Compute initial bounding sphere to find centroid
+                geometry.computeBoundingSphere();
+                const center = geometry.boundingSphere.center;
+                
+                // Center the geometry so the group's origin is the center of mass
+                geometry.translate(-center.x, -center.y, -center.z);
+                
+                // Update bounding sphere after translation
+                geometry.computeBoundingSphere();
+
+                // ROBUST RADIUS CALCULATION:
+                // Instead of using the max radius (which includes outliers), 
+                // calculate the average distance of points from the center.
+                // This gives a much tighter visual bounding circle.
+                const posAttr = geometry.attributes.position;
+                let totalDist = 0;
+                let count = 0;
+                // Sample a subset of points for speed if needed, or all
+                const step = 1; 
+                for (let i = 0; i < posAttr.count; i += step) {
+                    const x = posAttr.getX(i);
+                    const y = posAttr.getY(i);
+                    const z = posAttr.getZ(i);
+                    totalDist += Math.sqrt(x*x + y*y + z*z);
+                    count++;
+                }
+                const avgRadius = count > 0 ? totalDist / count : 0;
+                
+                // Use a multiplier (e.g., 2x avg radius) to cover most of the dense core
+                // Standard bounding sphere is often 5-10x this if there are outliers.
+                const robustRadius = avgRadius * 2.0; 
+
                 const material = new THREE.PointsMaterial({
-                    size: 0.025,
+                    size: 0.05,
                     vertexColors: true,
                     sizeAttenuation: true,
                     transparent: true,
@@ -122,6 +154,11 @@ export class DataLoader {
                 const cluster = this.clusters.get(path);
                 if (cluster) {
                     cluster.setPointCloud(geometry, material);
+                    // Store the original centroid offset if we ever need to recover absolute coords
+                    cluster.centroid.copy(center);
+                    
+                    // Use our robust radius instead of the bounding sphere radius
+                    cluster.radius = robustRadius; 
                 }
             }
         } catch (e) {
@@ -131,48 +168,8 @@ export class DataLoader {
 
     flattenStructure(structure) {
         const flatPaths = [];
-        const traverse = (obj, prefix = '') => {
-            for (const [key, value] of Object.entries(obj)) {
-                if (typeof value === 'object' && value.type) {
-                    const path = prefix ? `${prefix}/${key}` : key;
-                    flatPaths.push({
-                        path,
-                        type: value.type,
-                        children: value.children || []
-                    });
-                    // If it has nested objects that aren't just type/children defs
-                    // We need to traverse them too. In the provided structure, children are keys alongside type.
-                    for (const [subKey, subValue] of Object.entries(value)) {
-                        if (subKey !== 'type' && subKey !== 'children' && typeof subValue === 'object') {
-                             // This is a nested node like 'C_1_1' inside 'C_1'
-                             // But wait, the structure in v2 was: 'C_1': { 'ba_output': ..., 'C_1_1': ... }
-                             // So we recurse on the value itself
-                        }
-                    }
-                    
-                    // Actually, looking at v2 traverse logic:
-                    /*
-                    if (typeof value === 'object' && value.type) {
-                        // It's a leaf or merged node definition
-                        ... push ...
-                        // Check for nested objects
-                        if (typeof value === 'object' && !value.type) { ... } -> this logic in v2 was slightly weird/redundant?
-                    }
-                    */
-                   // Let's stick to the exact structure object and traverse it carefully.
-                   // The structure object mixes keys that are paths parts (C_1) and keys that are properties (type).
-                   // Actually, looking at v2: 
-                   // 'C_1': { 'ba_output': {type...}, 'C_1_1': {...} }
-                   // So we traverse keys. If a key value has a 'type', it's a path node.
-                   // But 'C_1' itself isn't a path node in the flattened list? 
-                   // No, v2 flatPaths pushed 'C_1/ba_output' and 'C_1/merged'.
-                   // It didn't push 'C_1' itself.
-                }
-            }
-        };
         
-        // Let's replicate v2 logic exactly but cleaned up
-        const traverseV2 = (obj, prefix = '') => {
+        const traverse = (obj, prefix = '') => {
             for (const [key, value] of Object.entries(obj)) {
                 // If value has a 'type', it is a concrete node (e.g. ba_output or merged)
                 if (value && typeof value === 'object' && value.type) {
@@ -182,35 +179,26 @@ export class DataLoader {
                         type: value.type,
                         children: value.children || []
                     });
-                    // But wait, does it have children nodes inside it?
-                    // In v2 structure:
-                    // 'C_1_1': { 'ba_output': {type...}, 'merged': {type...} }
-                    // Here 'C_1_1' does NOT have a type. It's a container.
-                    // 'ba_output' HAS a type.
                 } 
                 
                 // Recurse if it's an object (container or node with children)
                 if (value && typeof value === 'object') {
-                     // If it has a type, it's a node, but might contain nothing else relevant to traverse 
-                     // (in v2 structure, leaf nodes like ba_output don't have sub-keys except children array)
-                     // BUT container nodes like 'C_1' don't have type, so they fall here.
+                     // If it doesn't have a type, it's a container like C_1, so we definitely recurse.
+                     // If it DOES have a type (like 'merged'), we generally don't expect children NODES inside it
+                     // in this structure definition (children are property, not nested keys).
+                     // The nested keys are usually siblings or inside containers.
+                     // But our structure uses keys for path construction.
                      
-                     // The recursion path:
                      const path = prefix ? `${prefix}/${key}` : key;
                      
-                     // If this node was a typed node (e.g. 'merged'), we shouldn't recurse *inside* it for more nodes 
-                     // unless the structure implies it. 
-                     // In v2, 'merged' nodes don't contain other nodes.
-                     // 'C_1' contains 'ba_output' and 'merged'.
-                     
                      if (!value.type) {
-                         traverseV2(value, path);
+                         traverse(value, path);
                      }
                 }
             }
         };
         
-        traverseV2(this.getStructure());
+        traverse(structure);
         return flatPaths;
     }
 
@@ -223,11 +211,11 @@ export class DataLoader {
                 'ba_output': { type: 'ba_output', children: [] },
                 'C_1_1': {
                     'ba_output': { type: 'ba_output', children: [] },
-                    'merged': { type: 'merged', children: ['C_1_1/ba_output'] }
+                    'merged': { type: 'merged', children: ['C_1/C_1_1/ba_output'] }
                 },
                 'C_1_2': {
                     'ba_output': { type: 'ba_output', children: [] },
-                    'merged': { type: 'merged', children: ['C_1_2/ba_output'] }
+                    'merged': { type: 'merged', children: ['C_1/C_1_2/ba_output'] }
                 },
                 'merged': { type: 'merged', children: ['C_1/ba_output', 'C_1/C_1_1/merged', 'C_1/C_1_2/merged'] }
             },

@@ -6,8 +6,21 @@ export class LayoutEngine {
         this.root = this.clusters.get('merged');
         
         // Layout Constants
-        this.LEVEL_HEIGHT = 3.0; // Vertical distance between parent and child
-        this.LEAF_SPACING = 4.0; // Horizontal distance between leaves
+        // Calculate dynamic spacing based on median cluster size
+        let radii = [];
+        for (const c of clusters.values()) {
+            if (c.radius > 0) radii.push(c.radius);
+        }
+        // If no radii (empty clusters), fallback to 1.0
+        const medianRadius = radii.length > 0 ? radii.sort((a,b) => a-b)[Math.floor(radii.length/2)] : 1.0;
+        
+        // Scale spacing: k ~ 1.0 times radius or even tighter
+        // If "too small" (too much whitespace), we need TIGHTER packing.
+        // Let's go aggressive: overlapping allowed slightly, or minimal gap.
+        this.LEVEL_HEIGHT = medianRadius * 0.5; // Reduced from 0.8
+        this.LEAF_SPACING = medianRadius * 0.2; // Reduced from 0.6 - almost overlapping on purpose to close gaps 
+        
+        console.log(`Layout Spacing: Level=${this.LEVEL_HEIGHT.toFixed(2)}, Leaf=${this.LEAF_SPACING.toFixed(2)}, MedianR=${medianRadius.toFixed(2)}`);
     }
 
     computeLayout() {
@@ -45,14 +58,21 @@ export class LayoutEngine {
             // If leaf (of the tree structure, i.e. no children in the merge tree)
             if (node.children.length === 0) {
                 node.slabPosition.x = currentLeafX;
+                // Use POSITIVE Y for depth to stack UPWARDS or DOWNWARDS consistently
+                // Let's go "Up" visually: Root at top (highest Y), children below.
+                // So depth 0 (root) = Y=0. Depth 1 = Y = -LEVEL_HEIGHT.
                 node.slabPosition.y = -depth * this.LEVEL_HEIGHT;
                 node.slabPosition.z = 0;
                 currentLeafX += this.LEAF_SPACING;
             } else {
-                // Process children first
-                let childrenXSum = 0;
+                // Process children first to determine width
                 node.children.forEach(child => {
                     layoutNode(child, depth + 1);
+                });
+                
+                // Calculate average X of children for parent placement
+                let childrenXSum = 0;
+                node.children.forEach(child => {
                     childrenXSum += child.slabPosition.x;
                 });
                 
@@ -74,18 +94,39 @@ export class LayoutEngine {
         layoutNode(this.root, 0);
 
         // 3. Center the layout
-        // Find bounds
+        // Find bounds INCLUDING cluster radii
         let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+
         visited.forEach(node => {
-            minX = Math.min(minX, node.slabPosition.x);
-            maxX = Math.max(maxX, node.slabPosition.x);
+            const r = node.radius || 0;
+            minX = Math.min(minX, node.slabPosition.x - r);
+            maxX = Math.max(maxX, node.slabPosition.x + r);
+            minY = Math.min(minY, node.slabPosition.y - r);
+            maxY = Math.max(maxY, node.slabPosition.y + r);
         });
         
-        const centerOffset = (minX + maxX) / 2;
+        // If layout is empty or something went wrong
+        if (minX === Infinity) { minX = -10; maxX = 10; minY = -10; maxY = 10; }
+
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
         visited.forEach(node => {
-            node.slabPosition.x -= centerOffset;
-            node.group.position.x = node.slabPosition.x;
+            node.slabPosition.x -= centerX;
+            node.slabPosition.y -= centerY;
+            node.group.position.copy(node.slabPosition);
         });
+
+        // Calculate full bounds for camera fitting
+        this.bounds = {
+            minX: minX - centerX,
+            maxX: maxX - centerX,
+            minY: minY - centerY,
+            maxY: maxY - centerY,
+            width: (maxX - minX), // Removed whitespace scaling - keep it tight
+            height: (maxY - minY)
+        };
 
         // 4. Handle isolated clusters (ba_gt, ba_input)
         // Just place them to the side or hide them for now.

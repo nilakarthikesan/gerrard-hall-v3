@@ -74,7 +74,11 @@ export class CameraEngine {
             this.camera.lookAt(c);
         } else {
             // OVERVIEW mode
-            if (this.controls) this.controls.update();
+            if (this.controls) {
+                // Ensure autoRotate is definitely off unless enabled elsewhere
+                if (this.controls.autoRotate) this.controls.autoRotate = false;
+                this.controls.update();
+            }
         }
     }
 }
