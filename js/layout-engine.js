@@ -10,9 +10,10 @@ export class LayoutEngine {
         // LEVEL_HEIGHT: vertical distance between layers (parent to child)
         // LEAF_SPACING: horizontal distance between sibling leaves
         
-        // Spacing adjusted for larger clusters (TARGET_RADIUS=15)
-        this.LEVEL_HEIGHT = 20;   // Vertical spacing between layers
-        this.LEAF_SPACING = 25;   // Horizontal spacing between leaves
+        // TIGHT spacing - clusters close together to reduce whitespace
+        // With TARGET_RADIUS=30, we want clusters nearly touching
+        this.LEVEL_HEIGHT = 35;   // Vertical spacing (just slightly more than cluster diameter)
+        this.LEAF_SPACING = 40;   // Horizontal spacing (clusters nearly touching)
         
         console.log("=== LAYOUT ENGINE INITIALIZED ===");
         console.log(`Fixed Spacing: LEVEL_HEIGHT=${this.LEVEL_HEIGHT}, LEAF_SPACING=${this.LEAF_SPACING}`);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=6';
-import { LayoutEngine } from './layout-engine.js?v=6';
+import { DataLoader } from './data-loader.js?v=8';
+import { LayoutEngine } from './layout-engine.js?v=8';
 import { InteractionEngine } from './interaction-engine.js?v=2';
 import { AnimationEngine } from './animation-engine.js?v=2';
 import { CameraEngine } from './camera-engine.js?v=2';
@@ -176,14 +176,15 @@ class App {
         // Use the larger distance to ensure everything fits
         let dist = Math.max(distForHeight, distForWidth);
         
-        // Add some padding for visual comfort
-        dist *= 1.3;
+        // MINIMAL padding - we want ~40% whitespace, not more
+        // This means the visualization should fill ~60% of the screen
+        dist *= 1.1;  // Only 10% padding
         
         // Reasonable minimum distance
-        dist = Math.max(dist, 15);
+        dist = Math.max(dist, 30);
         
         // Allow larger distances for bigger layouts
-        dist = Math.min(dist, 200);
+        dist = Math.min(dist, 500);
         
         console.log(`Camera distance: ${dist.toFixed(1)}`);
         
@@ -246,19 +247,20 @@ class App {
 
     checkEndSequence() {
         if (this.currentEventIndex === this.events.length - 1) {
-            // Reached final merge - zoom in to see the merged building
+            // Reached final merge - zoom in to see the merged building LARGE
             console.log("Reached final merge! Zooming in...");
             
             const merged = this.dataLoader.clusters.get('merged');
             if (merged && merged.radius) {
-                // Calculate ideal camera distance to fill the view
+                // Calculate ideal camera distance to fill most of the view
                 const fov = this.camera.fov;
-                const aspect = window.innerWidth / window.innerHeight;
                 const radius = merged.radius;
                 
-                // Distance to fit the cluster in view
+                // Distance to fit the cluster - make it fill ~70% of screen height
                 let dist = radius / Math.tan(THREE.MathUtils.degToRad(fov / 2));
-                dist *= 1.5; // Slight padding
+                dist *= 1.2; // Minimal padding - building should be prominent
+                
+                console.log(`Final zoom: radius=${radius.toFixed(1)}, dist=${dist.toFixed(1)}`);
                 
                 // Animate camera zoom
                 this.animateCameraTo(0, 0, dist);

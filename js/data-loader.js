@@ -121,7 +121,7 @@ export class DataLoader {
                 
                 // SCALE the geometry to fit in a normalized space
                 // Larger TARGET_RADIUS = bigger clusters on screen
-                const TARGET_RADIUS = 15.0;  // Large clusters for better visibility
+                const TARGET_RADIUS = 30.0;  // Very large clusters for maximum visibility
                 const scaleFactor = originalRadius > 0 ? TARGET_RADIUS / originalRadius : 1.0;
                 geometry.scale(scaleFactor, scaleFactor, scaleFactor);
                 
@@ -146,7 +146,7 @@ export class DataLoader {
                 const robustRadius = avgRadius * 2.0; 
 
                 const material = new THREE.PointsMaterial({
-                    size: 0.1,  // Balanced point size
+                    size: 0.12,  // Fine points (not chunky)
                     vertexColors: true,
                     sizeAttenuation: true,
                     transparent: true,
