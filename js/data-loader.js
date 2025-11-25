@@ -114,21 +114,24 @@ export class DataLoader {
                 // Compute initial bounding sphere to find centroid
                 geometry.computeBoundingSphere();
                 const center = geometry.boundingSphere.center;
+                const originalRadius = geometry.boundingSphere.radius;
                 
                 // Center the geometry so the group's origin is the center of mass
                 geometry.translate(-center.x, -center.y, -center.z);
                 
-                // Update bounding sphere after translation
+                // SCALE DOWN the geometry to fit in a normalized space
+                // Target: clusters should be roughly 2-5 units in radius
+                const TARGET_RADIUS = 3.0;
+                const scaleFactor = originalRadius > 0 ? TARGET_RADIUS / originalRadius : 1.0;
+                geometry.scale(scaleFactor, scaleFactor, scaleFactor);
+                
+                // Update bounding sphere after transformations
                 geometry.computeBoundingSphere();
 
-                // ROBUST RADIUS CALCULATION:
-                // Instead of using the max radius (which includes outliers), 
-                // calculate the average distance of points from the center.
-                // This gives a much tighter visual bounding circle.
+                // The robust radius is now much smaller due to scaling
                 const posAttr = geometry.attributes.position;
                 let totalDist = 0;
                 let count = 0;
-                // Sample a subset of points for speed if needed, or all
                 const step = 1; 
                 for (let i = 0; i < posAttr.count; i += step) {
                     const x = posAttr.getX(i);
@@ -139,12 +142,11 @@ export class DataLoader {
                 }
                 const avgRadius = count > 0 ? totalDist / count : 0;
                 
-                // Use a multiplier (e.g., 2x avg radius) to cover most of the dense core
-                // Standard bounding sphere is often 5-10x this if there are outliers.
+                // Use a multiplier for visual bounding
                 const robustRadius = avgRadius * 2.0; 
 
                 const material = new THREE.PointsMaterial({
-                    size: 0.3,  // Increased significantly for better visibility
+                    size: 0.15,  // Adjusted for scaled geometry visibility
                     vertexColors: true,
                     sizeAttenuation: true,
                     transparent: true,

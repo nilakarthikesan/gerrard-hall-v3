@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js';
-import { LayoutEngine } from './layout-engine.js';
-import { InteractionEngine } from './interaction-engine.js';
-import { AnimationEngine } from './animation-engine.js';
-import { CameraEngine } from './camera-engine.js';
+import { DataLoader } from './data-loader.js?v=3';
+import { LayoutEngine } from './layout-engine.js?v=2';
+import { InteractionEngine } from './interaction-engine.js?v=2';
+import { AnimationEngine } from './animation-engine.js?v=2';
+import { CameraEngine } from './camera-engine.js?v=2';
 
 class App {
     constructor() {
@@ -176,14 +176,14 @@ class App {
         // Use the larger distance to ensure everything fits
         let dist = Math.max(distForHeight, distForWidth);
         
-        // NO padding - zoom in as close as possible
-        // dist *= 1.0; // No multiplier
+        // Add some padding for visual comfort
+        dist *= 1.3;
         
-        // Very low minimum distance
-        dist = Math.max(dist, 10);
+        // Reasonable minimum distance
+        dist = Math.max(dist, 15);
         
-        // Cap maximum distance to prevent being too far away
-        dist = Math.min(dist, 80);
+        // Allow larger distances for bigger layouts
+        dist = Math.min(dist, 200);
         
         console.log(`Camera distance: ${dist.toFixed(1)}`);
         
@@ -303,4 +303,5 @@ class App {
 
 // Start App
 const app = new App();
+window.app = app; // Expose for debugging
 app.start();

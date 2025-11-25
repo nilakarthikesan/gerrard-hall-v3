@@ -103,24 +103,27 @@ export class LayoutEngine {
             node.group.position.copy(node.slabPosition);
         });
 
-        // Calculate bounds for camera
+        // Calculate bounds for camera - use NODE POSITIONS ONLY, not radii
+        // This prevents inflated bounds from large bounding spheres
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
 
         visited.forEach(node => {
-            const r = node.radius || 2;
-            minX = Math.min(minX, node.slabPosition.x - r);
-            maxX = Math.max(maxX, node.slabPosition.x + r);
-            minY = Math.min(minY, node.slabPosition.y - r);
-            maxY = Math.max(maxY, node.slabPosition.y + r);
+            // Don't include radius - just use the center point
+            minX = Math.min(minX, node.slabPosition.x);
+            maxX = Math.max(maxX, node.slabPosition.x);
+            minY = Math.min(minY, node.slabPosition.y);
+            maxY = Math.max(maxY, node.slabPosition.y);
         });
 
+        // Add small padding for visual comfort
+        const padding = 5;
         this.bounds = {
-            width: maxX - minX,
-            height: maxY - minY
+            width: (maxX - minX) + padding * 2,
+            height: (maxY - minY) + padding * 2
         };
         
-        console.log(`Layout bounds: ${this.bounds.width.toFixed(1)} x ${this.bounds.height.toFixed(1)}`);
+        console.log(`Layout bounds (positions only): ${this.bounds.width.toFixed(1)} x ${this.bounds.height.toFixed(1)}`);
         console.log(`Root now at: (0, 0)`);
 
         // Log final positions
