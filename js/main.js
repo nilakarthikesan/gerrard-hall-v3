@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=3';
-import { LayoutEngine } from './layout-engine.js?v=2';
+import { DataLoader } from './data-loader.js?v=6';
+import { LayoutEngine } from './layout-engine.js?v=6';
 import { InteractionEngine } from './interaction-engine.js?v=2';
 import { AnimationEngine } from './animation-engine.js?v=2';
 import { CameraEngine } from './camera-engine.js?v=2';
@@ -221,6 +221,11 @@ class App {
         this.currentEventIndex = index;
         this.animationEngine.applyEventInstant(index);
         this.updateUI();
+        
+        // If jumping to final event, zoom in
+        if (index === this.events.length - 1) {
+            this.checkEndSequence();
+        }
     }
 
     reset() {
@@ -241,10 +246,46 @@ class App {
 
     checkEndSequence() {
         if (this.currentEventIndex === this.events.length - 1) {
-            // Reached end -> could trigger flythrough here
-            // For now, just stop
-            console.log("Reached final merge!");
+            // Reached final merge - zoom in to see the merged building
+            console.log("Reached final merge! Zooming in...");
+            
+            const merged = this.dataLoader.clusters.get('merged');
+            if (merged && merged.radius) {
+                // Calculate ideal camera distance to fill the view
+                const fov = this.camera.fov;
+                const aspect = window.innerWidth / window.innerHeight;
+                const radius = merged.radius;
+                
+                // Distance to fit the cluster in view
+                let dist = radius / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+                dist *= 1.5; // Slight padding
+                
+                // Animate camera zoom
+                this.animateCameraTo(0, 0, dist);
+            }
         }
+    }
+    
+    animateCameraTo(x, y, z) {
+        const startPos = this.camera.position.clone();
+        const endPos = new THREE.Vector3(x, y, z);
+        const duration = 1.5; // seconds
+        let elapsed = 0;
+        
+        const animate = (dt) => {
+            elapsed += dt;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+            
+            this.camera.position.lerpVectors(startPos, endPos, eased);
+            this.orbitControls.update();
+            
+            if (t < 1) {
+                requestAnimationFrame(() => animate(1/60));
+            }
+        };
+        
+        animate(0);
     }
 
     updateUI() {

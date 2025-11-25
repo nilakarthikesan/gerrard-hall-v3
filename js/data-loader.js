@@ -119,9 +119,9 @@ export class DataLoader {
                 // Center the geometry so the group's origin is the center of mass
                 geometry.translate(-center.x, -center.y, -center.z);
                 
-                // SCALE DOWN the geometry to fit in a normalized space
-                // Target: clusters should be roughly 2-5 units in radius
-                const TARGET_RADIUS = 3.0;
+                // SCALE the geometry to fit in a normalized space
+                // Larger TARGET_RADIUS = bigger clusters on screen
+                const TARGET_RADIUS = 15.0;  // Large clusters for better visibility
                 const scaleFactor = originalRadius > 0 ? TARGET_RADIUS / originalRadius : 1.0;
                 geometry.scale(scaleFactor, scaleFactor, scaleFactor);
                 
@@ -146,7 +146,7 @@ export class DataLoader {
                 const robustRadius = avgRadius * 2.0; 
 
                 const material = new THREE.PointsMaterial({
-                    size: 0.15,  // Adjusted for scaled geometry visibility
+                    size: 0.1,  // Balanced point size
                     vertexColors: true,
                     sizeAttenuation: true,
                     transparent: true,
