@@ -150,15 +150,4 @@ export class LayoutEngine {
             }
         }
         
-        if (orphans.length > 0) {
-            console.warn(`Orphaned clusters (hidden): ${orphans.join(', ')}`);
-        } else {
-            console.log("No orphaned clusters.");
-        }
-        
-        console.log("\n=== LAYOUT COMPLETE ===");
-        console.log(`Tree structure: ${visited.size} nodes`);
-        console.log(`ROOT (merged) is at CENTER (0, 0)`);
-        console.log(`Leaves spread out below (negative Y)`);
-    }
-}
+        if (orp

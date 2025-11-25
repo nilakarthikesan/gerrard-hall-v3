@@ -247,20 +247,27 @@ class App {
 
     checkEndSequence() {
         if (this.currentEventIndex === this.events.length - 1) {
-            // Reached final merge - zoom in to see the merged building LARGE
-            console.log("Reached final merge! Zooming in...");
+            // Reached final merge - zoom in to make building fill 79% of screen
+            console.log("Reached final merge! Zooming in to fill 79% of screen...");
             
             const merged = this.dataLoader.clusters.get('merged');
-            if (merged && merged.radius) {
-                // Calculate ideal camera distance to fill most of the view
+            if (merged && merged.pointCloud && merged.pointCloud.geometry) {
                 const fov = this.camera.fov;
-                const radius = merged.radius;
                 
-                // Distance to fit the cluster - make it fill ~70% of screen height
-                let dist = radius / Math.tan(THREE.MathUtils.degToRad(fov / 2));
-                dist *= 1.2; // Minimal padding - building should be prominent
+                // Use the ACTUAL geometry bounding sphere radius, not the robust radius
+                const geomRadius = merged.pointCloud.geometry.boundingSphere?.radius || merged.radius;
                 
-                console.log(`Final zoom: radius=${radius.toFixed(1)}, dist=${dist.toFixed(1)}`);
+                // To fill X% of screen height:
+                // visualSize = 2 * radius (diameter)
+                // screenHeight = 2 * dist * tan(fov/2)
+                // We want: visualSize / screenHeight = 0.79
+                // So: (2 * radius) / (2 * dist * tan(fov/2)) = 0.79
+                // Solving for dist: dist = radius / (0.79 * tan(fov/2))
+                
+                const targetFill = 0.79; // 79% of screen
+                let dist = geomRadius / (targetFill * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+                
+                console.log(`Final zoom: geomRadius=${geomRadius.toFixed(1)}, dist=${dist.toFixed(1)}, fill=${(targetFill*100).toFixed(0)}%`);
                 
                 // Animate camera zoom
                 this.animateCameraTo(0, 0, dist);

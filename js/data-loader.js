@@ -257,7 +257,4 @@ export class DataLoader {
                 },
                 'merged': { type: 'merged', children: ['C_4/ba_output', 'C_4/C_4_1/merged', 'C_4/C_4_2/merged'] }
             },
-            'merged': { type: 'merged', children: ['ba_output', 'C_1/merged', 'C_2/merged', 'C_3/merged', 'C_4/merged'] }
-        };
-    }
-}
+            'merged':
