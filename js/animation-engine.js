@@ -1,72 +1,95 @@
 import * as THREE from 'three';
 
 export class AnimationEngine {
-    constructor(clusters) {
+    constructor(clusters, layoutEngine) {
         this.clusters = clusters;
+        this.layoutEngine = layoutEngine; // Reference to know which clusters are in the tree
         this.activeTweens = [];
         this.mergeEvents = [];
     }
 
     initTimeline() {
-        // Replicate the v2 logic to build a timeline, but robustly
+        // Build timeline ONLY from clusters that are part of the merge tree
+        // This means we skip orphans like ba_gt, ba_input
+        
         const processedPaths = new Set();
         this.mergeEvents = [];
 
-        const addEventsForPath = (path) => {
-            if (processedPaths.has(path)) return;
+        // Get the root and traverse only connected nodes
+        const root = this.clusters.get('merged');
+        if (!root) {
+            console.error("AnimationEngine: No 'merged' root found!");
+            return this.mergeEvents;
+        }
+
+        // Collect all nodes in the merge tree (same logic as LayoutEngine)
+        const treeNodes = new Set();
+        const collectTreeNodes = (node) => {
+            treeNodes.add(node.path);
+            for (const child of node.children) {
+                collectTreeNodes(child);
+            }
+        };
+        collectTreeNodes(root);
+        
+        console.log("=== ANIMATION ENGINE ===");
+        console.log(`Clusters in merge tree: ${treeNodes.size}`);
+        console.log("Tree nodes:", Array.from(treeNodes));
+
+        // Build events using POST-ORDER traversal
+        // This means: children appear BEFORE parents
+        // Leaves appear first, then their parents, then grandparents, etc.
+        
+        const addEventsPostOrder = (node) => {
+            if (processedPaths.has(node.path)) return;
             
-            const cluster = this.clusters.get(path);
-            if (!cluster) return;
-            
-            // Process children first (post-order)
-            if (cluster.children && cluster.children.length > 0) {
-                for (const child of cluster.children) {
-                    addEventsForPath(child.path);
-                }
+            // First, process all children (so they appear first)
+            for (const child of node.children) {
+                addEventsPostOrder(child);
             }
             
-            // Identify what gets hidden when this cluster appears
-            // In v2 logic: if type is 'merged', we hide its children.
-            const hiddenPaths = cluster.type === 'merged' ? cluster.childrenPaths : [];
+            // Then add this node's event
+            // When this node appears, its children get hidden (they merge INTO this node)
+            const hiddenPaths = node.children.map(c => c.path);
             
             this.mergeEvents.push({
-                path: path,
-                hide: hiddenPaths
+                path: node.path,
+                hide: hiddenPaths,
+                isLeaf: node.children.length === 0
             });
             
-            processedPaths.add(path);
+            processedPaths.add(node.path);
         };
-
-        // Roots from v2
-        const roots = ['ba_gt', 'ba_input', 'ba_output'];
-        roots.forEach(r => { if (this.clusters.has(r)) addEventsForPath(r); });
         
-        const clusterGroups = ['C_1', 'C_2', 'C_3', 'C_4'];
-        clusterGroups.forEach(c => {
-            addEventsForPath(`${c}/ba_output`);
-            addEventsForPath(`${c}/merged`);
+        addEventsPostOrder(root);
+        
+        console.log(`Total events: ${this.mergeEvents.length}`);
+        console.log("Event order:");
+        this.mergeEvents.forEach((e, i) => {
+            const type = e.isLeaf ? 'LEAF' : 'MERGE';
+            console.log(`  ${i+1}. [${type}] ${e.path} ${e.hide.length > 0 ? `(hides: ${e.hide.join(', ')})` : ''}`);
         });
-        
-        addEventsForPath('merged');
         
         return this.mergeEvents;
     }
 
     // Jump to a specific event index instantly (for initialization/reset)
     applyEventInstant(index) {
-        // Reset all
+        // Reset all clusters to hidden
         for (const cluster of this.clusters.values()) {
             if (cluster.pointCloud) {
                 cluster.pointCloud.visible = false;
                 cluster.pointCloud.material.opacity = 1;
-                cluster.group.position.copy(cluster.slabPosition); // Reset position
-                cluster.group.visible = false; // Hide group too
+                cluster.group.position.copy(cluster.slabPosition);
             }
+            cluster.group.visible = false;
         }
 
         // Replay history up to index
         for (let i = 0; i <= index; i++) {
             const event = this.mergeEvents[i];
+            if (!event) continue;
+            
             const cluster = this.clusters.get(event.path);
             
             if (cluster && cluster.pointCloud) {
@@ -76,12 +99,13 @@ export class AnimationEngine {
                 cluster.group.position.copy(cluster.slabPosition);
             }
             
+            // Hide children that merged into this cluster
             if (event.hide) {
                 event.hide.forEach(childPath => {
                     const child = this.clusters.get(childPath);
-                    if (child && child.pointCloud) {
+                    if (child) {
                         child.group.visible = false;
-                        child.pointCloud.visible = false;
+                        if (child.pointCloud) child.pointCloud.visible = false;
                     }
                 });
             }
@@ -100,13 +124,14 @@ export class AnimationEngine {
         const children = event.hide ? event.hide.map(p => this.clusters.get(p)).filter(c => c) : [];
 
         if (direction > 0) {
-            // FORWARD: Merge children into parent
-            // 1. Parent Fades In (starts at opacity 0)
+            // FORWARD: Show this cluster, merge children into it
+            
+            // 1. Parent Fades In
             if (parent && parent.pointCloud) {
                 parent.group.visible = true;
                 parent.pointCloud.visible = true;
                 parent.pointCloud.material.opacity = 0;
-                parent.group.position.copy(parent.slabPosition); // Ensure parent is in place
+                parent.group.position.copy(parent.slabPosition);
 
                 this.addTween({
                     target: parent.pointCloud.material,
@@ -117,30 +142,24 @@ export class AnimationEngine {
                 });
             }
 
-            // 2. Children Move to Parent & Fade Out
+            // 2. Children Move to Parent & Fade Out (if any)
             children.forEach(child => {
                 if (!child.pointCloud || !child.group.visible) return;
 
-                // Calculate a mid-point for the Bezier curve
-                // Lift 'y' slightly to create an arc, or 'z' if we want depth-arcing.
-                // Since we are in a 2D slab (x,y), let's arc in Y or Z.
-                // Design doc suggests: "mid.y += 0.3 * medianRadius; // small lift arc"
                 const start = child.group.position.clone();
                 const end = parent.slabPosition.clone();
                 const mid = start.clone().lerp(end, 0.5);
                 
-                // In layout: Root is at Y=0, Children at Y=-LEVEL_HEIGHT.
-                // So Children move UP (+Y) to Parent.
-                // Let's arc slightly "out" (Z) but much less than before.
-                mid.z += 2.0; // Reduced from 5.0. Subtle "pop" forward.
-
+                // Arc slightly in Z for visual interest
+                mid.z += 3.0;
+                
                 this.addTween({
-                    type: 'bezier', // Mark as bezier
+                    type: 'bezier',
                     target: child.group.position,
                     start: start,
                     end: end,
                     control: mid,
-                    duration: 1.5, // Slower merge for better visibility
+                    duration: 1.2,
                     ease: this.easeInOutCubic
                 });
 
@@ -148,7 +167,7 @@ export class AnimationEngine {
                     target: child.pointCloud.material,
                     property: 'opacity',
                     to: 0,
-                    duration: 1.5,
+                    duration: 1.2,
                     ease: this.easeQuadIn,
                     onComplete: () => {
                         child.group.visible = false;
@@ -160,7 +179,6 @@ export class AnimationEngine {
         } else {
             // BACKWARD: Unmerge (Parent hides, Children appear and move back)
             
-            // 1. Parent Fades Out
             if (parent && parent.pointCloud) {
                 this.addTween({
                     target: parent.pointCloud.material,
@@ -175,13 +193,11 @@ export class AnimationEngine {
                 });
             }
 
-            // 2. Children Fade In & Move Back to Original Slab Pos
             children.forEach(child => {
                 if (!child.pointCloud) return;
                 
                 child.group.visible = true;
                 child.pointCloud.visible = true;
-                // Start at Parent Position (where they merged to)
                 child.group.position.copy(parent ? parent.slabPosition : child.slabPosition);
                 child.pointCloud.material.opacity = 0;
 
@@ -204,11 +220,9 @@ export class AnimationEngine {
     }
 
     addTween(params) {
-        // params: { target, property (opt), to (val or vec3), duration, ease, onComplete, type, start, end, control }
         this.activeTweens.push({
             ...params,
             elapsed: 0,
-            // If it's not a bezier, assume standard linear/prop tween
             start: params.type === 'bezier' ? params.start : (params.property ? params.target[params.property] : params.target.clone())
         });
     }
@@ -222,16 +236,12 @@ export class AnimationEngine {
             if (tween.ease) progress = tween.ease(progress);
             
             if (tween.type === 'bezier') {
-                // Quadratic Bezier: (1-t)^2 * P0 + 2(1-t)t * P1 + t^2 * P2
                 const t = progress;
                 const invT = 1 - t;
-                
-                // We need to calculate this manually for the vector
                 const p0 = tween.start;
                 const p1 = tween.control;
                 const p2 = tween.end;
                 
-                // Fix: Ensure target is a Vector3 before assigning properties
                 if (tween.target && typeof tween.target.x !== 'undefined') {
                     tween.target.x = (invT * invT * p0.x) + (2 * invT * t * p1.x) + (t * t * p2.x);
                     tween.target.y = (invT * invT * p0.y) + (2 * invT * t * p1.y) + (t * t * p2.y);
@@ -239,10 +249,8 @@ export class AnimationEngine {
                 }
                 
             } else if (tween.property) {
-                // Scalar tween
                 tween.target[tween.property] = tween.start + (tween.to - tween.start) * progress;
             } else {
-                // Vector3 tween (linear)
                 tween.target.lerpVectors(tween.start, tween.to, progress);
             }
 

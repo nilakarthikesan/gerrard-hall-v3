@@ -20,8 +20,8 @@ class App {
         this.scene.background = new THREE.Color(0xffffff); // White background
         
         // Camera
-        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 0, 20); // Start back
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+        this.camera.position.set(0, 0, 100); // Start further back
         
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -29,30 +29,27 @@ class App {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.container.appendChild(this.renderer.domElement);
         
-        // Controls
+        // Controls - COMPLETELY DISABLE AUTO ROTATION
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
         this.orbitControls.autoRotate = false; 
-        this.orbitControls.autoRotateSpeed = 0.0; // Force speed to 0
-        
-        // Ensure it stays off
-        this.orbitControls.addEventListener('change', () => {
-            if (this.orbitControls.autoRotate) {
-                this.orbitControls.autoRotate = false;
-            }
-        });
+        this.orbitControls.autoRotateSpeed = 0;
+        this.orbitControls.enableRotate = true; // Allow manual rotation
+        this.orbitControls.enablePan = true;
+        this.orbitControls.enableZoom = true;
         
         // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
         dirLight.position.set(10, 10, 10);
         this.scene.add(dirLight);
 
-        // Global Group to hold all clusters (for global orientation fix)
+        // Global Group to hold all clusters
         this.worldGroup = new THREE.Group();
-        this.worldGroup.rotation.z = Math.PI; // Fix upside down
+        // Remove the rotation - let's see the data as-is first
+        // this.worldGroup.rotation.z = Math.PI; 
         this.scene.add(this.worldGroup);
 
         // Handle Resize
@@ -65,7 +62,6 @@ class App {
 
     initEngines() {
         this.dataLoader = new DataLoader();
-        // Other engines initialized after data load
     }
 
     initUI() {
@@ -87,15 +83,11 @@ class App {
         this.ui.resetBtn.addEventListener('click', () => this.reset());
         this.ui.playBtn.addEventListener('click', () => this.togglePlay());
         
-        // Click on timeline
         this.ui.track.addEventListener('click', (e) => {
             if (!this.animationEngine) return;
             const rect = this.ui.track.getBoundingClientRect();
             const pct = (e.clientX - rect.left) / rect.width;
             const index = Math.floor(pct * this.animationEngine.mergeEvents.length);
-            // Ideally jump to index. For now, let's just log or implement jump later.
-            // Implementing Jump is hard with animations. 
-            // Let's allow jump by "Instant Apply"
             this.jumpTo(index);
         });
     }
@@ -111,62 +103,25 @@ class App {
             if (clusters.size === 0) {
                 throw new Error("No clusters loaded. Check console/network.");
             }
-
+        
             // Add all cluster groups to world
             for (const cluster of clusters.values()) {
                 this.worldGroup.add(cluster.group);
             }
 
-            // 1. Layout
+            // 1. Layout Engine - computes positions
             this.layoutEngine = new LayoutEngine(clusters);
             this.layoutEngine.computeLayout();
 
-            // Fit camera to layout bounds
-            if (this.layoutEngine.bounds) {
-                const b = this.layoutEngine.bounds;
-                const maxDim = Math.max(b.width, b.height);
-                
-                // Calculate distance needed to fit the bounding sphere
-                // Vertical FOV is 60 degrees.
-                // tan(theta/2) = (height/2) / dist
-                // dist = (height/2) / tan(theta/2)
-                
-                const fov = 60;
-                const aspect = window.innerWidth / window.innerHeight;
-                
-                // Check if we are limited by width or height
-                let dist;
-                if (aspect >= 1) {
-                    // Landscape: Height is the constraint usually, unless width is huge
-                    // But let's be safe and fit the larger dimension into the vertical FOV
-                    // Actually, if width is much larger than height, we need to fit width into horizontal FOV
-                    
-                    // Fit height first
-                    const distH = (b.height / 2) / Math.tan(THREE.MathUtils.degToRad(fov / 2));
-                    
-                    // Fit width (convert vert FOV to horiz FOV estimate or just divide by aspect)
-                    const distW = (b.width / 2) / (aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
-                    
-                    dist = Math.max(distH, distW);
-                } else {
-                    // Portrait
-                    const distH = (b.height / 2) / Math.tan(THREE.MathUtils.degToRad(fov / 2));
-                    const distW = (b.width / 2) / (aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
-                    dist = Math.max(distH, distW);
-                }
+            // 2. Fit camera to the layout bounds
+            this.fitCameraToLayout();
 
-                // REDUCED PADDING from 1.2 to 0.8 to zoom in closer
-                this.camera.position.set(0, 0, dist * 0.8); 
-                this.orbitControls.target.set(0, 0, 0);
-                this.orbitControls.update();
-            }
-
-            // 2. Animation Timeline
-            this.animationEngine = new AnimationEngine(clusters);
+            // 3. Animation Timeline - ONLY includes merge tree nodes (no orphans)
+            this.animationEngine = new AnimationEngine(clusters, this.layoutEngine);
             this.events = this.animationEngine.initTimeline();
             this.currentEventIndex = 0;
 
-            // 3. Interaction
+            // 4. Interaction
             this.interactionEngine = new InteractionEngine(
                 this.camera, 
                 this.renderer.domElement, 
@@ -174,22 +129,74 @@ class App {
                 this.orbitControls
             );
 
-            // 4. Camera
+            // 5. Camera Engine
             this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
 
-            // Initial State: All Hidden, apply event 0 (or just start empty?)
-            // Let's show the first event
-            this.animationEngine.applyEventInstant(0);
+            // Initial State: Show first event (first leaf cluster)
+            if (this.events.length > 0) {
+                this.animationEngine.applyEventInstant(0);
+            }
             this.updateUI();
 
             this.ui.loading.style.display = 'none';
             
-            // Start Loop
+            // Start render loop
             this.animate();
+            
         } catch (err) {
             console.error("App Start Error:", err);
             this.ui.loadingText.innerHTML = `<span style="color: #ff4444">Error starting app:<br>${err.message}</span>`;
         }
+    }
+
+    fitCameraToLayout() {
+        if (!this.layoutEngine.bounds) {
+            console.warn("No layout bounds available");
+            return;
+        }
+        
+        const b = this.layoutEngine.bounds;
+        console.log("=== FITTING CAMERA ===");
+        console.log(`Layout bounds: ${b.width.toFixed(1)} x ${b.height.toFixed(1)}`);
+        
+        // Calculate distance needed to fit the layout in view
+        const fov = this.camera.fov;
+        const aspect = window.innerWidth / window.innerHeight;
+        
+        // We need to fit both width and height
+        // For vertical: dist = (height/2) / tan(fov/2)
+        // For horizontal: dist = (width/2) / tan(hfov/2) where hfov = 2*atan(aspect*tan(fov/2))
+        
+        const vFovRad = THREE.MathUtils.degToRad(fov / 2);
+        const hFovRad = Math.atan(aspect * Math.tan(vFovRad));
+        
+        const distForHeight = (b.height / 2) / Math.tan(vFovRad);
+        const distForWidth = (b.width / 2) / Math.tan(hFovRad);
+        
+        // Use the larger distance to ensure everything fits
+        let dist = Math.max(distForHeight, distForWidth);
+        
+        // NO padding - zoom in as close as possible
+        // dist *= 1.0; // No multiplier
+        
+        // Very low minimum distance
+        dist = Math.max(dist, 10);
+        
+        // Cap maximum distance to prevent being too far away
+        dist = Math.min(dist, 80);
+        
+        console.log(`Camera distance: ${dist.toFixed(1)}`);
+        
+        // Position camera looking at center
+        this.camera.position.set(0, 0, dist);
+        this.camera.lookAt(0, 0, 0);
+        
+        // Set orbit controls target to center
+        this.orbitControls.target.set(0, 0, 0);
+        this.orbitControls.update();
+        
+        console.log(`Camera position: (0, 0, ${dist.toFixed(1)})`);
+        console.log(`Looking at: (0, 0, 0)`);
     }
 
     step(direction) {
@@ -228,28 +235,28 @@ class App {
         this.ui.playBtn.textContent = this.isPlaying ? 'Pause' : 'Play Sequence';
         
         if (this.isPlaying && this.currentEventIndex >= this.events.length - 1) {
-            // Restart if at end
             this.jumpTo(0);
         }
     }
 
     checkEndSequence() {
         if (this.currentEventIndex === this.events.length - 1) {
-            // Reached end -> Trigger Cinematic Flythrough
-            const merged = this.dataLoader.clusters.get('merged');
-            if (merged) {
-                this.cameraEngine.startFlythrough(merged.slabPosition, 10, 20); // radius 10, 20s duration
-            }
+            // Reached end -> could trigger flythrough here
+            // For now, just stop
+            console.log("Reached final merge!");
         }
     }
 
     updateUI() {
         const count = this.events.length;
+        if (count === 0) return;
+        
         const progress = (this.currentEventIndex / (count - 1)) * 100;
         this.ui.progressBar.style.width = `${progress}%`;
         
         const event = this.events[this.currentEventIndex];
-        this.ui.eventLabel.textContent = `Event ${this.currentEventIndex + 1}/${count}: Showing ${event.path}`;
+        const eventType = event.isLeaf ? 'Showing' : 'Merging into';
+        this.ui.eventLabel.textContent = `Event ${this.currentEventIndex + 1}/${count}: ${eventType} ${event.path}`;
         
         // Stats
         let visiblePoints = 0;
@@ -264,23 +271,20 @@ class App {
     }
 
     animate() {
-        requestAnimationFrame((t) => this.animate());
+        requestAnimationFrame(() => this.animate());
         
         const time = performance.now() / 1000;
-        const dt = 0.016; // Approx
+        const dt = 0.016;
 
         // Auto Play logic
         if (this.isPlaying) {
-            // Simple interval check or just check if previous tween finished?
-            // For now, let's use a timer or just trigger next if no tweens active?
-            // Better: Play one event per X seconds.
             if (!this.lastStepTime) this.lastStepTime = time;
-            if (time - this.lastStepTime > 1.5) { // 1.5s per event
+            if (time - this.lastStepTime > 1.5) {
                 if (this.currentEventIndex < this.events.length - 1) {
                     this.step(1);
                     this.lastStepTime = time;
                 } else {
-                    this.togglePlay(); // Stop at end
+                    this.togglePlay();
                 }
             }
         } else {
@@ -288,8 +292,10 @@ class App {
         }
 
         if (this.animationEngine) this.animationEngine.update(dt);
-        if (this.interactionEngine) this.interactionEngine.update && this.interactionEngine.update(dt); // If needed
         if (this.cameraEngine) this.cameraEngine.update(time);
+        
+        // Update orbit controls (for damping)
+        this.orbitControls.update();
         
         this.renderer.render(this.scene, this.camera);
     }

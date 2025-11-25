@@ -144,7 +144,7 @@ export class DataLoader {
                 const robustRadius = avgRadius * 2.0; 
 
                 const material = new THREE.PointsMaterial({
-                    size: 0.05,
+                    size: 0.3,  // Increased significantly for better visibility
                     vertexColors: true,
                     sizeAttenuation: true,
                     transparent: true,
