@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=302';
-import { LayoutEngine } from './layout-engine.js?v=302';
-import { InteractionEngine } from './interaction-engine.js?v=302';
-import { AnimationEngine } from './animation-engine.js?v=302';
-import { CameraEngine } from './camera-engine.js?v=302';
+import { DataLoader } from './data-loader.js?v=315';
+import { HierarchyLayoutEngine } from './layout-engine-hierarchy.js?v=6';
+import { InteractionEngine } from './interaction-engine.js?v=305';
+import { HierarchyAnimationEngine } from './animation-engine-hierarchy.js?v=2';
+import { CameraEngine } from './camera-engine.js?v=305';
 
-class App {
+class HierarchyApp {
     constructor() {
         this.initThree();
         this.initEngines();
@@ -17,11 +17,11 @@ class App {
         this.container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xffffff); // White background
+        this.scene.background = new THREE.Color(0xf5f5f5); // Light background
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.set(0, 0, 100); // Start further back
+        this.camera.position.set(0, 0, 200);
         
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -29,27 +29,21 @@ class App {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.container.appendChild(this.renderer.domElement);
         
-        // Controls - COMPLETELY DISABLE AUTO ROTATION
+        // Controls
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
-        this.orbitControls.autoRotate = false; 
-        this.orbitControls.autoRotateSpeed = 0;
-        this.orbitControls.enableRotate = true; // Allow manual rotation
-        this.orbitControls.enablePan = true;
-        this.orbitControls.enableZoom = true;
+        this.orbitControls.autoRotate = false;
         
         // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
         this.scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
         dirLight.position.set(10, 10, 10);
         this.scene.add(dirLight);
 
-        // Global Group to hold all clusters
+        // World Group
         this.worldGroup = new THREE.Group();
-        // Remove the rotation - let's see the data as-is first
-        // this.worldGroup.rotation.z = Math.PI; 
         this.scene.add(this.worldGroup);
 
         // Handle Resize
@@ -109,15 +103,15 @@ class App {
                 this.worldGroup.add(cluster.group);
             }
 
-            // 1. Layout Engine - computes positions
-            this.layoutEngine = new LayoutEngine(clusters);
+            // 1. Hierarchy Layout Engine
+            this.layoutEngine = new HierarchyLayoutEngine(clusters);
             this.layoutEngine.computeLayout();
 
-            // 2. Fit camera to the layout bounds
+            // 2. Fit camera to layout
             this.fitCameraToLayout();
 
-            // 3. Animation Timeline - ONLY includes merge tree nodes (no orphans)
-            this.animationEngine = new AnimationEngine(clusters, this.layoutEngine);
+            // 3. Animation Timeline
+            this.animationEngine = new HierarchyAnimationEngine(clusters, this.layoutEngine);
             this.events = this.animationEngine.initTimeline();
             this.currentEventIndex = 0;
 
@@ -132,7 +126,7 @@ class App {
             // 5. Camera Engine
             this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
 
-            // Initial State: Show first event (first leaf cluster)
+            // Initial State
             if (this.events.length > 0) {
                 this.animationEngine.applyEventInstant(0);
             }
@@ -150,22 +144,15 @@ class App {
     }
 
     fitCameraToLayout() {
+        // For hierarchy view, fit camera to show the tree layout CENTERED
         if (!this.layoutEngine.bounds) {
             console.warn("No layout bounds available");
             return;
         }
         
         const b = this.layoutEngine.bounds;
-        console.log("=== FITTING CAMERA ===");
-        console.log(`Layout bounds: ${b.width.toFixed(1)} x ${b.height.toFixed(1)}`);
-        
-        // Calculate distance needed to fit the layout in view
         const fov = this.camera.fov;
         const aspect = window.innerWidth / window.innerHeight;
-        
-        // We need to fit both width and height
-        // For vertical: dist = (height/2) / tan(fov/2)
-        // For horizontal: dist = (width/2) / tan(hfov/2) where hfov = 2*atan(aspect*tan(fov/2))
         
         const vFovRad = THREE.MathUtils.degToRad(fov / 2);
         const hFovRad = Math.atan(aspect * Math.tan(vFovRad));
@@ -173,31 +160,29 @@ class App {
         const distForHeight = (b.height / 2) / Math.tan(vFovRad);
         const distForWidth = (b.width / 2) / Math.tan(hFovRad);
         
-        // Use the larger distance to ensure everything fits
         let dist = Math.max(distForHeight, distForWidth);
         
-        // REDUCE distance significantly - we want to zoom in more
-        // The exploded view is spread out, but we want to see clusters clearly
-        dist *= 0.6;  // Zoom in by 40%
+        // Zoom to show the tree well - 55% of calculated distance
+        dist *= 0.55;
         
-        // Reasonable minimum distance
-        dist = Math.max(dist, 80);
+        // Minimum distance to avoid clipping
+        dist = Math.max(dist, 20);
         
-        // Cap maximum distance
-        dist = Math.min(dist, 300);
+        // Center camera lower on Y axis to move visualization to center of screen
+        // The tree has root at top (high Y) so we look at a lower Y to center it visually
+        const centerY = (b.maxY + b.minY) / 2 + 15; // Move camera UP to push visualization DOWN
+        const centerX = 0; // Tree is centered at X=0
         
-        console.log(`Camera distance: ${dist.toFixed(1)}`);
+        console.log(`=== HIERARCHY CAMERA FIT ===`);
+        console.log(`Layout bounds: ${b.width.toFixed(1)} x ${b.height.toFixed(1)}`);
+        console.log(`Bounds: minX=${b.minX.toFixed(1)}, maxX=${b.maxX.toFixed(1)}, minY=${b.minY.toFixed(1)}, maxY=${b.maxY.toFixed(1)}`);
+        console.log(`Center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`);
+        console.log(`Camera distance: ${dist.toFixed(1)} (ZOOMED IN)`);
         
-        // Position camera looking at center
-        this.camera.position.set(0, 0, dist);
-        this.camera.lookAt(0, 0, 0);
-        
-        // Set orbit controls target to center
-        this.orbitControls.target.set(0, 0, 0);
+        this.camera.position.set(centerX, centerY, dist);
+        this.camera.lookAt(centerX, centerY, 0);
+        this.orbitControls.target.set(centerX, centerY, 0);
         this.orbitControls.update();
-        
-        console.log(`Camera position: (0, 0, ${dist.toFixed(1)})`);
-        console.log(`Looking at: (0, 0, 0)`);
     }
 
     step(direction) {
@@ -205,7 +190,6 @@ class App {
             if (this.currentEventIndex < this.events.length - 1) {
                 this.currentEventIndex++;
                 this.animationEngine.playEvent(this.currentEventIndex, 1);
-                this.checkEndSequence();
             }
         } else {
             if (this.currentEventIndex > 0) {
@@ -222,11 +206,6 @@ class App {
         this.currentEventIndex = index;
         this.animationEngine.applyEventInstant(index);
         this.updateUI();
-        
-        // If jumping to final event, zoom in
-        if (index === this.events.length - 1) {
-            this.checkEndSequence();
-        }
     }
 
     reset() {
@@ -245,100 +224,6 @@ class App {
         }
     }
 
-    checkEndSequence() {
-        if (this.currentEventIndex === this.events.length - 1) {
-            // Reached final merge - zoom in to make building fill 80% of screen
-            console.log("Reached final merge! Zooming in to fill 80% of screen...");
-            
-            const merged = this.dataLoader.clusters.get('merged');
-            if (merged && merged.pointCloud && merged.pointCloud.geometry) {
-                const fov = this.camera.fov;
-                const geom = merged.pointCloud.geometry;
-                
-                // Get the building's position (where the group is)
-                const buildingCenter = merged.assembledPosition || merged.group.position.clone();
-                
-                // Calculate ACTUAL bounding box
-                const posAttr = geom.attributes.position;
-                let minX = Infinity, maxX = -Infinity;
-                let minY = Infinity, maxY = -Infinity;
-                for (let i = 0; i < posAttr.count; i++) {
-                    const x = posAttr.getX(i);
-                    const y = posAttr.getY(i);
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-                const buildingWidth = maxX - minX;
-                const buildingHeight = maxY - minY;
-                
-                const targetFill = 0.80; // 80% of screen
-                const aspect = window.innerWidth / window.innerHeight;
-                
-                // Calculate distance needed for height and width
-                const distForHeight = buildingHeight / (2 * targetFill * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
-                const distForWidth = buildingWidth / (2 * targetFill * aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
-                
-                // Use the larger distance to ensure building fits
-                let dist = Math.max(distForHeight, distForWidth);
-                
-                console.log(`Final zoom: height=${buildingHeight.toFixed(1)}, width=${buildingWidth.toFixed(1)}, dist=${dist.toFixed(1)}, fill=${(targetFill*100).toFixed(0)}%`);
-                console.log(`Building center: (${buildingCenter.x.toFixed(1)}, ${buildingCenter.y.toFixed(1)}, ${buildingCenter.z.toFixed(1)})`);
-                
-                // Animate camera to look at building center
-                this.animateCameraToTarget(buildingCenter.x, buildingCenter.y, buildingCenter.z + dist, buildingCenter);
-            }
-        }
-    }
-    
-    animateCameraTo(x, y, z) {
-        const startPos = this.camera.position.clone();
-        const endPos = new THREE.Vector3(x, y, z);
-        const duration = 1.5; // seconds
-        let elapsed = 0;
-        
-        const animate = (dt) => {
-            elapsed += dt;
-            const t = Math.min(elapsed / duration, 1);
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
-            
-            this.camera.position.lerpVectors(startPos, endPos, eased);
-            this.orbitControls.update();
-            
-            if (t < 1) {
-                requestAnimationFrame(() => animate(1/60));
-            }
-        };
-        
-        animate(0);
-    }
-    
-    animateCameraToTarget(x, y, z, target) {
-        const startPos = this.camera.position.clone();
-        const endPos = new THREE.Vector3(x, y, z);
-        const startTarget = this.orbitControls.target.clone();
-        const endTarget = target.clone();
-        const duration = 1.5; // seconds
-        let elapsed = 0;
-        
-        const animate = (dt) => {
-            elapsed += dt;
-            const t = Math.min(elapsed / duration, 1);
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
-            
-            this.camera.position.lerpVectors(startPos, endPos, eased);
-            this.orbitControls.target.lerpVectors(startTarget, endTarget, eased);
-            this.orbitControls.update();
-            
-            if (t < 1) {
-                requestAnimationFrame(() => animate(1/60));
-            }
-        };
-        
-        animate(0);
-    }
-
     updateUI() {
         const count = this.events.length;
         if (count === 0) return;
@@ -350,7 +235,6 @@ class App {
         const eventType = event.isLeaf ? 'Showing' : 'Merging into';
         this.ui.eventLabel.textContent = `Event ${this.currentEventIndex + 1}/${count}: ${eventType} ${event.path}`;
         
-        // Stats
         let visiblePoints = 0;
         let visibleClusters = 0;
         for (const c of this.dataLoader.clusters.values()) {
@@ -368,10 +252,9 @@ class App {
         const time = performance.now() / 1000;
         const dt = 0.016;
 
-        // Auto Play logic
         if (this.isPlaying) {
             if (!this.lastStepTime) this.lastStepTime = time;
-            if (time - this.lastStepTime > 1.5) {
+            if (time - this.lastStepTime > 1.2) {
                 if (this.currentEventIndex < this.events.length - 1) {
                     this.step(1);
                     this.lastStepTime = time;
@@ -386,14 +269,13 @@ class App {
         if (this.animationEngine) this.animationEngine.update(dt);
         if (this.cameraEngine) this.cameraEngine.update(time);
         
-        // Update orbit controls (for damping)
         this.orbitControls.update();
-        
         this.renderer.render(this.scene, this.camera);
     }
 }
 
 // Start App
-const app = new App();
-window.app = app; // Expose for debugging
+const app = new HierarchyApp();
+window.app = app;
 app.start();
+

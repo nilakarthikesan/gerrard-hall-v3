@@ -11,7 +11,8 @@ export class Cluster {
         this.pointsCount = 0;
         
         // Layout properties
-        this.slabPosition = new THREE.Vector3();
+        this.slabPosition = new THREE.Vector3();  // Position in the layout
+        this.originalCenter = new THREE.Vector3(); // Original center in world coords (for puzzle effect)
         this.radius = 0;
         this.centroid = new THREE.Vector3();
         
@@ -38,6 +39,9 @@ export class DataLoader {
     constructor() {
         this.clusters = new Map(); // path -> Cluster
         this.root = null;
+        this.globalCenter = new THREE.Vector3();
+        this.globalRadius = 0;
+        this.scaleFactor = 1.0;
     }
 
     async load() {
@@ -66,7 +70,7 @@ export class DataLoader {
             }
         }
 
-        // Load geometry
+        // Load geometry - KEEP ORIGINAL COORDINATES
         const promises = flatPaths.map(async (item) => {
             await this.loadPointCloud(item.path);
             loaded++;
@@ -74,6 +78,9 @@ export class DataLoader {
         });
 
         await Promise.all(promises);
+        
+        // After all clusters loaded, compute global bounds and normalize
+        this.computeGlobalBoundsAndNormalize();
         
         return this.clusters;
     }
@@ -111,60 +118,150 @@ export class DataLoader {
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
                 geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
                 
-                // Compute initial bounding sphere to find centroid
+                // Compute bounding sphere for radius
                 geometry.computeBoundingSphere();
-                const center = geometry.boundingSphere.center;
                 const originalRadius = geometry.boundingSphere.radius;
                 
-                // Center the geometry so the group's origin is the center of mass
-                geometry.translate(-center.x, -center.y, -center.z);
-                
-                // SCALE the geometry to fit in a normalized space
-                // Larger TARGET_RADIUS = bigger clusters on screen
-                const TARGET_RADIUS = 30.0;  // Very large clusters for maximum visibility
-                const scaleFactor = originalRadius > 0 ? TARGET_RADIUS / originalRadius : 1.0;
-                geometry.scale(scaleFactor, scaleFactor, scaleFactor);
-                
-                // Update bounding sphere after transformations
-                geometry.computeBoundingSphere();
-
-                // The robust radius is now much smaller due to scaling
+                // Compute CENTROID (center of mass) - this is where this cluster belongs in the building
+                // The centroid is more accurate than bounding sphere center for asymmetric point clouds
                 const posAttr = geometry.attributes.position;
-                let totalDist = 0;
-                let count = 0;
-                const step = 1; 
-                for (let i = 0; i < posAttr.count; i += step) {
-                    const x = posAttr.getX(i);
-                    const y = posAttr.getY(i);
-                    const z = posAttr.getZ(i);
-                    totalDist += Math.sqrt(x*x + y*y + z*z);
-                    count++;
+                let sumX = 0, sumY = 0, sumZ = 0;
+                for (let i = 0; i < posAttr.count; i++) {
+                    sumX += posAttr.getX(i);
+                    sumY += posAttr.getY(i);
+                    sumZ += posAttr.getZ(i);
                 }
-                const avgRadius = count > 0 ? totalDist / count : 0;
-                
-                // Use a multiplier for visual bounding
-                const robustRadius = avgRadius * 2.0; 
+                const originalCenter = new THREE.Vector3(
+                    sumX / posAttr.count,
+                    sumY / posAttr.count,
+                    sumZ / posAttr.count
+                );
 
+                // Simple point material - small crisp points, no texture
                 const material = new THREE.PointsMaterial({
-                    size: 0.12,  // Fine points (not chunky)
+                    size: 1.5,  // Small pixel size
                     vertexColors: true,
-                    sizeAttenuation: true,
-                    transparent: true,
+                    sizeAttenuation: false,  // Fixed pixel size regardless of distance
+                    transparent: false,
                     opacity: 1.0
                 });
 
                 const cluster = this.clusters.get(path);
                 if (cluster) {
                     cluster.setPointCloud(geometry, material);
-                    // Store the original centroid offset if we ever need to recover absolute coords
-                    cluster.centroid.copy(center);
-                    
-                    // Use our robust radius instead of the bounding sphere radius
-                    cluster.radius = robustRadius; 
+                    // Store the original center for puzzle assembly effect
+                    cluster.originalCenter.copy(originalCenter);
+                    cluster.centroid.copy(originalCenter);
+                    cluster.radius = originalRadius;
                 }
             }
         } catch (e) {
             console.warn(`Error loading ${path}:`, e);
+        }
+    }
+    
+    computeGlobalBoundsAndNormalize() {
+        // Find the global bounding box of ALL clusters
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+        
+        for (const [path, cluster] of this.clusters) {
+            if (cluster.pointCloud && cluster.pointCloud.geometry) {
+                const pos = cluster.pointCloud.geometry.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const x = pos.getX(i);
+                    const y = pos.getY(i);
+                    const z = pos.getZ(i);
+                    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+                }
+            }
+        }
+        
+        // Use the MERGED cluster's CENTROID (center of mass) as the global center
+        // This ensures the final building is visually centered at (0,0,0)
+        const mergedCluster = this.clusters.get('merged');
+        if (mergedCluster && mergedCluster.pointCloud && mergedCluster.pointCloud.geometry) {
+            const geom = mergedCluster.pointCloud.geometry;
+            const pos = geom.attributes.position;
+            let sumX = 0, sumY = 0, sumZ = 0;
+            for (let i = 0; i < pos.count; i++) {
+                sumX += pos.getX(i);
+                sumY += pos.getY(i);
+                sumZ += pos.getZ(i);
+            }
+            this.globalCenter.set(
+                sumX / pos.count,
+                sumY / pos.count,
+                sumZ / pos.count
+            );
+            console.log("Using merged cluster CENTROID for global centering");
+        } else {
+            // Fallback to bounding box center
+            this.globalCenter.set(
+                (minX + maxX) / 2,
+                (minY + maxY) / 2,
+                (minZ + maxZ) / 2
+            );
+            console.log("Using bounding box center for global centering");
+        }
+        
+        const sizeX = maxX - minX;
+        const sizeY = maxY - minY;
+        const sizeZ = maxZ - minZ;
+        this.globalRadius = Math.sqrt(sizeX*sizeX + sizeY*sizeY + sizeZ*sizeZ) / 2;
+        
+        console.log("=== GLOBAL BOUNDS ===");
+        console.log(`Center: (${this.globalCenter.x.toFixed(2)}, ${this.globalCenter.y.toFixed(2)}, ${this.globalCenter.z.toFixed(2)})`);
+        console.log(`Size: ${sizeX.toFixed(2)} x ${sizeY.toFixed(2)} x ${sizeZ.toFixed(2)}`);
+        console.log(`Radius: ${this.globalRadius.toFixed(2)}`);
+        
+        // Scale factor to make the building fill a good portion of the screen
+        // Target size of ~150 units for better visibility
+        const TARGET_SIZE = 150;
+        this.scaleFactor = this.globalRadius > 0 ? TARGET_SIZE / this.globalRadius : 1.0;
+        
+        console.log(`Scale factor: ${this.scaleFactor.toFixed(2)}`);
+        
+        // Now normalize all clusters:
+        // 1. Center them around (0,0,0)
+        // 2. Scale them uniformly
+        for (const [path, cluster] of this.clusters) {
+            if (cluster.pointCloud && cluster.pointCloud.geometry) {
+                const geometry = cluster.pointCloud.geometry;
+                
+                // Translate to center around global origin
+                geometry.translate(
+                    -this.globalCenter.x,
+                    -this.globalCenter.y,
+                    -this.globalCenter.z
+                );
+                
+                // Scale uniformly
+                geometry.scale(this.scaleFactor, this.scaleFactor, this.scaleFactor);
+                
+                // Update bounding sphere
+                geometry.computeBoundingSphere();
+                
+                // Update cluster's original center (also needs to be transformed)
+                cluster.originalCenter.sub(this.globalCenter);
+                cluster.originalCenter.multiplyScalar(this.scaleFactor);
+                
+                // Update radius
+                cluster.radius = geometry.boundingSphere.radius;
+                
+                // Update point size - balanced for visibility without being blocky
+                cluster.pointCloud.material.size = 0.6;  // Smaller points for finer detail
+            }
+        }
+        
+        console.log("\nCluster original centers (normalized):");
+        for (const [path, cluster] of this.clusters) {
+            if (cluster.originalCenter) {
+                console.log(`  ${path}: (${cluster.originalCenter.x.toFixed(1)}, ${cluster.originalCenter.y.toFixed(1)}, ${cluster.originalCenter.z.toFixed(1)})`);
+            }
         }
     }
 
@@ -185,12 +282,6 @@ export class DataLoader {
                 
                 // Recurse if it's an object (container or node with children)
                 if (value && typeof value === 'object') {
-                     // If it doesn't have a type, it's a container like C_1, so we definitely recurse.
-                     // If it DOES have a type (like 'merged'), we generally don't expect children NODES inside it
-                     // in this structure definition (children are property, not nested keys).
-                     // The nested keys are usually siblings or inside containers.
-                     // But our structure uses keys for path construction.
-                     
                      const path = prefix ? `${prefix}/${key}` : key;
                      
                      if (!value.type) {
@@ -257,4 +348,7 @@ export class DataLoader {
                 },
                 'merged': { type: 'merged', children: ['C_4/ba_output', 'C_4/C_4_1/merged', 'C_4/C_4_2/merged'] }
             },
-            'merged':
+            'merged': { type: 'merged', children: ['ba_output', 'C_1/merged', 'C_2/merged', 'C_3/merged', 'C_4/merged'] }
+        };
+    }
+}

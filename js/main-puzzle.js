@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=302';
-import { LayoutEngine } from './layout-engine.js?v=302';
-import { InteractionEngine } from './interaction-engine.js?v=302';
-import { AnimationEngine } from './animation-engine.js?v=302';
-import { CameraEngine } from './camera-engine.js?v=302';
+import { DataLoader } from './data-loader.js?v=327';
+import { LayoutEngine } from './layout-engine.js?v=305';
+import { InteractionEngine } from './interaction-engine.js?v=305';
+import { AnimationEngine } from './animation-engine.js?v=305';
+import { CameraEngine } from './camera-engine.js?v=305';
 
-class App {
+class PuzzleApp {
     constructor() {
         this.initThree();
         this.initEngines();
@@ -21,7 +21,7 @@ class App {
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.set(0, 0, 100); // Start further back
+        this.camera.position.set(0, 0, 150);
         
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -29,15 +29,12 @@ class App {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.container.appendChild(this.renderer.domElement);
         
-        // Controls - COMPLETELY DISABLE AUTO ROTATION
+        // Controls
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
-        this.orbitControls.autoRotate = false; 
+        this.orbitControls.autoRotate = false;
         this.orbitControls.autoRotateSpeed = 0;
-        this.orbitControls.enableRotate = true; // Allow manual rotation
-        this.orbitControls.enablePan = true;
-        this.orbitControls.enableZoom = true;
         
         // Lights
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -46,10 +43,10 @@ class App {
         dirLight.position.set(10, 10, 10);
         this.scene.add(dirLight);
 
-        // Global Group to hold all clusters
+        // World Group
         this.worldGroup = new THREE.Group();
-        // Remove the rotation - let's see the data as-is first
-        // this.worldGroup.rotation.z = Math.PI; 
+        // Rotate 180 degrees around X-axis to flip right-side up
+        this.worldGroup.rotation.x = Math.PI;
         this.scene.add(this.worldGroup);
 
         // Handle Resize
@@ -109,14 +106,14 @@ class App {
                 this.worldGroup.add(cluster.group);
             }
 
-            // 1. Layout Engine - computes positions
+            // 1. Layout Engine - computes exploded/assembled positions
             this.layoutEngine = new LayoutEngine(clusters);
             this.layoutEngine.computeLayout();
 
-            // 2. Fit camera to the layout bounds
-            this.fitCameraToLayout();
+            // 2. Fit camera - START zoomed in on the assembled building
+            this.fitCameraToBuilding();
 
-            // 3. Animation Timeline - ONLY includes merge tree nodes (no orphans)
+            // 3. Animation Timeline
             this.animationEngine = new AnimationEngine(clusters, this.layoutEngine);
             this.events = this.animationEngine.initTimeline();
             this.currentEventIndex = 0;
@@ -132,7 +129,7 @@ class App {
             // 5. Camera Engine
             this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
 
-            // Initial State: Show first event (first leaf cluster)
+            // Initial State: Show first event
             if (this.events.length > 0) {
                 this.animationEngine.applyEventInstant(0);
             }
@@ -145,59 +142,51 @@ class App {
             
         } catch (err) {
             console.error("App Start Error:", err);
-            this.ui.loadingText.innerHTML = `<span style="color: #ff4444">Error starting app:<br>${err.message}</span>`;
+            this.ui.loadingText.innerHTML = `<span style="color: #ff6b6b">Error starting app:<br>${err.message}</span>`;
         }
     }
 
-    fitCameraToLayout() {
-        if (!this.layoutEngine.bounds) {
-            console.warn("No layout bounds available");
+    fitCameraToBuilding() {
+        // For puzzle mode, fit camera to show the final building size
+        // ZOOM IN VERY CLOSE for better visibility
+        const merged = this.dataLoader.clusters.get('merged');
+        if (!merged || !merged.pointCloud) {
+            console.warn("No merged cluster for camera fit");
             return;
         }
         
-        const b = this.layoutEngine.bounds;
-        console.log("=== FITTING CAMERA ===");
-        console.log(`Layout bounds: ${b.width.toFixed(1)} x ${b.height.toFixed(1)}`);
+        const geom = merged.pointCloud.geometry;
+        geom.computeBoundingBox();
         
-        // Calculate distance needed to fit the layout in view
+        const box = geom.boundingBox;
+        const width = box.max.x - box.min.x;
+        const height = box.max.y - box.min.y;
+        
         const fov = this.camera.fov;
         const aspect = window.innerWidth / window.innerHeight;
         
-        // We need to fit both width and height
-        // For vertical: dist = (height/2) / tan(fov/2)
-        // For horizontal: dist = (width/2) / tan(hfov/2) where hfov = 2*atan(aspect*tan(fov/2))
+        // Calculate distance to fill 100% of screen
+        const targetFill = 1.0;
+        const distForHeight = height / (2 * targetFill * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
+        const distForWidth = width / (2 * targetFill * aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
         
-        const vFovRad = THREE.MathUtils.degToRad(fov / 2);
-        const hFovRad = Math.atan(aspect * Math.tan(vFovRad));
-        
-        const distForHeight = (b.height / 2) / Math.tan(vFovRad);
-        const distForWidth = (b.width / 2) / Math.tan(hFovRad);
-        
-        // Use the larger distance to ensure everything fits
         let dist = Math.max(distForHeight, distForWidth);
         
-        // REDUCE distance significantly - we want to zoom in more
-        // The exploded view is spread out, but we want to see clusters clearly
-        dist *= 0.6;  // Zoom in by 40%
+        // Zoom in EXTREMELY close - only 12% of calculated distance
+        // This makes the building fill most of the screen like the user's screenshot
+        dist *= 0.12;
         
-        // Reasonable minimum distance
-        dist = Math.max(dist, 80);
+        // Minimum distance to avoid clipping
+        dist = Math.max(dist, 10);
         
-        // Cap maximum distance
-        dist = Math.min(dist, 300);
+        console.log(`=== PUZZLE CAMERA FIT ===`);
+        console.log(`Building size: ${width.toFixed(1)} x ${height.toFixed(1)}`);
+        console.log(`Camera distance: ${dist.toFixed(1)} (EXTREMELY ZOOMED IN)`);
         
-        console.log(`Camera distance: ${dist.toFixed(1)}`);
-        
-        // Position camera looking at center
         this.camera.position.set(0, 0, dist);
         this.camera.lookAt(0, 0, 0);
-        
-        // Set orbit controls target to center
         this.orbitControls.target.set(0, 0, 0);
         this.orbitControls.update();
-        
-        console.log(`Camera position: (0, 0, ${dist.toFixed(1)})`);
-        console.log(`Looking at: (0, 0, 0)`);
     }
 
     step(direction) {
@@ -223,7 +212,6 @@ class App {
         this.animationEngine.applyEventInstant(index);
         this.updateUI();
         
-        // If jumping to final event, zoom in
         if (index === this.events.length - 1) {
             this.checkEndSequence();
         }
@@ -247,47 +235,36 @@ class App {
 
     checkEndSequence() {
         if (this.currentEventIndex === this.events.length - 1) {
-            // Reached final merge - zoom in to make building fill 80% of screen
-            console.log("Reached final merge! Zooming in to fill 80% of screen...");
+            console.log("Reached final merge! Zooming in VERY CLOSE...");
             
             const merged = this.dataLoader.clusters.get('merged');
             if (merged && merged.pointCloud && merged.pointCloud.geometry) {
                 const fov = this.camera.fov;
                 const geom = merged.pointCloud.geometry;
+                geom.computeBoundingBox();
                 
-                // Get the building's position (where the group is)
-                const buildingCenter = merged.assembledPosition || merged.group.position.clone();
+                const box = geom.boundingBox;
+                const buildingWidth = box.max.x - box.min.x;
+                const buildingHeight = box.max.y - box.min.y;
                 
-                // Calculate ACTUAL bounding box
-                const posAttr = geom.attributes.position;
-                let minX = Infinity, maxX = -Infinity;
-                let minY = Infinity, maxY = -Infinity;
-                for (let i = 0; i < posAttr.count; i++) {
-                    const x = posAttr.getX(i);
-                    const y = posAttr.getY(i);
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-                const buildingWidth = maxX - minX;
-                const buildingHeight = maxY - minY;
-                
-                const targetFill = 0.80; // 80% of screen
+                const targetFill = 1.0; // Fill screen completely
                 const aspect = window.innerWidth / window.innerHeight;
                 
-                // Calculate distance needed for height and width
                 const distForHeight = buildingHeight / (2 * targetFill * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
                 const distForWidth = buildingWidth / (2 * targetFill * aspect * Math.tan(THREE.MathUtils.degToRad(fov / 2)));
                 
-                // Use the larger distance to ensure building fits
                 let dist = Math.max(distForHeight, distForWidth);
                 
-                console.log(`Final zoom: height=${buildingHeight.toFixed(1)}, width=${buildingWidth.toFixed(1)}, dist=${dist.toFixed(1)}, fill=${(targetFill*100).toFixed(0)}%`);
-                console.log(`Building center: (${buildingCenter.x.toFixed(1)}, ${buildingCenter.y.toFixed(1)}, ${buildingCenter.z.toFixed(1)})`);
+                // Zoom in EXTREMELY close - only 12% of calculated distance
+                // This makes the final building fill most of the screen like the user's screenshot
+                dist *= 0.12;
                 
-                // Animate camera to look at building center
-                this.animateCameraToTarget(buildingCenter.x, buildingCenter.y, buildingCenter.z + dist, buildingCenter);
+                // Minimum distance
+                dist = Math.max(dist, 10);
+                
+                console.log(`Final zoom: ${buildingWidth.toFixed(1)} x ${buildingHeight.toFixed(1)}, dist=${dist.toFixed(1)}`);
+                
+                this.animateCameraTo(0, 0, dist);
             }
         }
     }
@@ -295,40 +272,15 @@ class App {
     animateCameraTo(x, y, z) {
         const startPos = this.camera.position.clone();
         const endPos = new THREE.Vector3(x, y, z);
-        const duration = 1.5; // seconds
+        const duration = 1.5;
         let elapsed = 0;
         
         const animate = (dt) => {
             elapsed += dt;
             const t = Math.min(elapsed / duration, 1);
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
             
             this.camera.position.lerpVectors(startPos, endPos, eased);
-            this.orbitControls.update();
-            
-            if (t < 1) {
-                requestAnimationFrame(() => animate(1/60));
-            }
-        };
-        
-        animate(0);
-    }
-    
-    animateCameraToTarget(x, y, z, target) {
-        const startPos = this.camera.position.clone();
-        const endPos = new THREE.Vector3(x, y, z);
-        const startTarget = this.orbitControls.target.clone();
-        const endTarget = target.clone();
-        const duration = 1.5; // seconds
-        let elapsed = 0;
-        
-        const animate = (dt) => {
-            elapsed += dt;
-            const t = Math.min(elapsed / duration, 1);
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
-            
-            this.camera.position.lerpVectors(startPos, endPos, eased);
-            this.orbitControls.target.lerpVectors(startTarget, endTarget, eased);
             this.orbitControls.update();
             
             if (t < 1) {
@@ -350,7 +302,6 @@ class App {
         const eventType = event.isLeaf ? 'Showing' : 'Merging into';
         this.ui.eventLabel.textContent = `Event ${this.currentEventIndex + 1}/${count}: ${eventType} ${event.path}`;
         
-        // Stats
         let visiblePoints = 0;
         let visibleClusters = 0;
         for (const c of this.dataLoader.clusters.values()) {
@@ -368,7 +319,6 @@ class App {
         const time = performance.now() / 1000;
         const dt = 0.016;
 
-        // Auto Play logic
         if (this.isPlaying) {
             if (!this.lastStepTime) this.lastStepTime = time;
             if (time - this.lastStepTime > 1.5) {
@@ -386,14 +336,13 @@ class App {
         if (this.animationEngine) this.animationEngine.update(dt);
         if (this.cameraEngine) this.cameraEngine.update(time);
         
-        // Update orbit controls (for damping)
         this.orbitControls.update();
-        
         this.renderer.render(this.scene, this.camera);
     }
 }
 
 // Start App
-const app = new App();
-window.app = app; // Expose for debugging
+const app = new PuzzleApp();
+window.app = app;
 app.start();
+

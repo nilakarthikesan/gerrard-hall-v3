@@ -75,17 +75,19 @@ export class AnimationEngine {
 
     // Jump to a specific event index instantly (for initialization/reset)
     applyEventInstant(index) {
-        // Reset all clusters to hidden
+        // Reset all clusters to hidden and at their EXPLODED positions
         for (const cluster of this.clusters.values()) {
             if (cluster.pointCloud) {
                 cluster.pointCloud.visible = false;
                 cluster.pointCloud.material.opacity = 1;
+                // Start at exploded position (slabPosition)
                 cluster.group.position.copy(cluster.slabPosition);
             }
             cluster.group.visible = false;
         }
 
         // Replay history up to index
+        // As we progress, clusters move toward their ASSEMBLED positions
         for (let i = 0; i <= index; i++) {
             const event = this.mergeEvents[i];
             if (!event) continue;
@@ -96,7 +98,14 @@ export class AnimationEngine {
                 cluster.group.visible = true;
                 cluster.pointCloud.visible = true;
                 cluster.pointCloud.material.opacity = 1;
-                cluster.group.position.copy(cluster.slabPosition);
+                
+                // Position at assembled position (final building position)
+                // This creates the "puzzle coming together" effect
+                if (cluster.assembledPosition) {
+                    cluster.group.position.copy(cluster.assembledPosition);
+                } else {
+                    cluster.group.position.copy(cluster.slabPosition);
+                }
             }
             
             // Hide children that merged into this cluster
@@ -124,14 +133,27 @@ export class AnimationEngine {
         const children = event.hide ? event.hide.map(p => this.clusters.get(p)).filter(c => c) : [];
 
         if (direction > 0) {
-            // FORWARD: Show this cluster, merge children into it
+            // FORWARD: Show this cluster at its assembled position
+            // Children animate from their positions to the parent's assembled position, then fade out
             
-            // 1. Parent Fades In
+            const parentAssembledPos = parent && parent.assembledPosition ? parent.assembledPosition : parent.slabPosition;
+            
+            // 1. Parent appears at its ASSEMBLED position (where it belongs in the building)
             if (parent && parent.pointCloud) {
                 parent.group.visible = true;
                 parent.pointCloud.visible = true;
                 parent.pointCloud.material.opacity = 0;
+                
+                // Start at exploded, animate to assembled
                 parent.group.position.copy(parent.slabPosition);
+                
+                // Animate position from exploded to assembled
+                this.addTween({
+                    target: parent.group.position,
+                    to: parentAssembledPos.clone(),
+                    duration: 1.0,
+                    ease: this.easeInOutCubic
+                });
 
                 this.addTween({
                     target: parent.pointCloud.material,
@@ -142,16 +164,19 @@ export class AnimationEngine {
                 });
             }
 
-            // 2. Children Move to Parent & Fade Out (if any)
+            // 2. Children Move to their ASSEMBLED positions & Fade Out
+            // This creates the "puzzle pieces coming together" effect
             children.forEach(child => {
                 if (!child.pointCloud || !child.group.visible) return;
 
                 const start = child.group.position.clone();
-                const end = parent.slabPosition.clone();
+                // Children move to their assembled position (where they fit in the building)
+                const childAssembledPos = child.assembledPosition || child.slabPosition;
+                const end = childAssembledPos.clone();
                 const mid = start.clone().lerp(end, 0.5);
                 
                 // Arc slightly in Z for visual interest
-                mid.z += 3.0;
+                mid.z += 5.0;
                 
                 this.addTween({
                     type: 'bezier',
