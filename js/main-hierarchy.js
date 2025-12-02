@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=315';
+import { DataLoader } from './data-loader.js?v=331';
 import { HierarchyLayoutEngine } from './layout-engine-hierarchy.js?v=6';
 import { InteractionEngine } from './interaction-engine.js?v=305';
 import { HierarchyAnimationEngine } from './animation-engine-hierarchy.js?v=2';
@@ -17,7 +17,7 @@ class HierarchyApp {
         this.container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xf5f5f5); // Light background
+        this.scene.background = new THREE.Color(0xffffff); // White background as requested
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -162,11 +162,11 @@ class HierarchyApp {
         
         let dist = Math.max(distForHeight, distForWidth);
         
-        // Zoom to show the tree well - 55% of calculated distance
-        dist *= 0.55;
+        // Zoom in MUCH closer - 25% of calculated distance
+        dist *= 0.25;
         
         // Minimum distance to avoid clipping
-        dist = Math.max(dist, 20);
+        dist = Math.max(dist, 8);
         
         // Center camera lower on Y axis to move visualization to center of screen
         // The tree has root at top (high Y) so we look at a lower Y to center it visually

@@ -137,9 +137,11 @@ export class DataLoader {
                     sumZ / posAttr.count
                 );
 
-                // Simple point material - small crisp points, no texture
+                // Simple point material - larger points for denser, more filled appearance
+                // Note: Density is determined by GTSfM output (~24k points for merged)
+                // We can only make existing points larger to fill gaps
                 const material = new THREE.PointsMaterial({
-                    size: 1.5,  // Small pixel size
+                    size: 5.0,  // Larger points to fill gaps and show colors better
                     vertexColors: true,
                     sizeAttenuation: false,  // Fixed pixel size regardless of distance
                     transparent: false,

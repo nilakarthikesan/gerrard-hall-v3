@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=327';
+import { DataLoader } from './data-loader.js?v=328';
 import { LayoutEngine } from './layout-engine.js?v=305';
 import { InteractionEngine } from './interaction-engine.js?v=305';
 import { AnimationEngine } from './animation-engine.js?v=305';
@@ -172,12 +172,12 @@ class PuzzleApp {
         
         let dist = Math.max(distForHeight, distForWidth);
         
-        // Zoom in EXTREMELY close - only 12% of calculated distance
+        // Zoom in EXTREMELY close - only 5% of calculated distance
         // This makes the building fill most of the screen like the user's screenshot
-        dist *= 0.12;
+        dist *= 0.05;
         
         // Minimum distance to avoid clipping
-        dist = Math.max(dist, 10);
+        dist = Math.max(dist, 3);
         
         console.log(`=== PUZZLE CAMERA FIT ===`);
         console.log(`Building size: ${width.toFixed(1)} x ${height.toFixed(1)}`);
@@ -255,12 +255,12 @@ class PuzzleApp {
                 
                 let dist = Math.max(distForHeight, distForWidth);
                 
-                // Zoom in EXTREMELY close - only 12% of calculated distance
+                // Zoom in EXTREMELY close - only 5% of calculated distance
                 // This makes the final building fill most of the screen like the user's screenshot
-                dist *= 0.12;
+                dist *= 0.05;
                 
                 // Minimum distance
-                dist = Math.max(dist, 10);
+                dist = Math.max(dist, 3);
                 
                 console.log(`Final zoom: ${buildingWidth.toFixed(1)} x ${buildingHeight.toFixed(1)}, dist=${dist.toFixed(1)}`);
                 
