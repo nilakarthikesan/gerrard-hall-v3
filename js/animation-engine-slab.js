@@ -330,7 +330,29 @@ export class SlabAnimationEngine {
             startTarget: startTarget,
             endTarget: endTarget,
             startTime: performance.now(),
-            duration: 1500  // Smooth 1.5 second zoom
+            duration: 1500,  // Smooth 1.5 second zoom
+            onComplete: () => {
+                // After zoom, start 360 rotation
+                this.rotate360(targetX, targetY, zoomedDistance);
+            }
+        });
+    }
+    
+    /**
+     * Rotate camera 360 degrees around the final building
+     */
+    rotate360(centerX, centerY, distance) {
+        console.log("Starting 360° rotation around Gerrard Hall");
+        
+        this.activeAnimations.push({
+            type: 'rotate360',
+            centerX: centerX,
+            centerY: centerY,
+            distance: distance,
+            startAngle: 0,
+            endAngle: Math.PI * 2, // Full 360 degrees
+            startTime: performance.now(),
+            duration: 6000 // 6 seconds for full rotation
         });
     }
 
@@ -377,6 +399,19 @@ export class SlabAnimationEngine {
                     if (this.camera && this.orbitControls) {
                         this.camera.position.lerpVectors(anim.startPos, anim.endPos, eased);
                         this.orbitControls.target.lerpVectors(anim.startTarget, anim.endTarget, eased);
+                        this.orbitControls.update();
+                    }
+                    break;
+                    
+                case 'rotate360':
+                    if (this.camera && this.orbitControls) {
+                        // Smoothly rotate camera around the center point
+                        const angle = anim.startAngle + (anim.endAngle - anim.startAngle) * eased;
+                        const x = anim.centerX + Math.sin(angle) * anim.distance;
+                        const z = Math.cos(angle) * anim.distance;
+                        
+                        this.camera.position.set(x, anim.centerY, z);
+                        this.orbitControls.target.set(anim.centerX, anim.centerY, 0);
                         this.orbitControls.update();
                     }
                     break;

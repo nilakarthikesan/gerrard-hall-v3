@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=328';
+import { DataLoader } from './data-loader.js?v=405';
 import { LayoutEngine } from './layout-engine.js?v=305';
 import { InteractionEngine } from './interaction-engine.js?v=305';
 import { AnimationEngine } from './animation-engine.js?v=305';
@@ -23,10 +23,12 @@ class PuzzleApp {
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         this.camera.position.set(0, 0, 150);
         
-        // Renderer
+        // Renderer with proper color management
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        // Ensure proper color rendering (sRGB output)
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.container.appendChild(this.renderer.domElement);
         
         // Controls

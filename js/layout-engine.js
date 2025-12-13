@@ -100,7 +100,7 @@ export class LayoutEngine {
             minZ = Math.min(minZ, pos.z - r);
             maxZ = Math.max(maxZ, pos.z + r);
         });
-
+        
         this.bounds = {
             width: maxX - minX,
             height: maxY - minY,

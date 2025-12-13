@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DataLoader } from './data-loader.js?v=302';
+import { DataLoader } from './data-loader.js?v=405';
 import { LayoutEngine } from './layout-engine.js?v=302';
 import { InteractionEngine } from './interaction-engine.js?v=302';
 import { AnimationEngine } from './animation-engine.js?v=302';
@@ -27,6 +27,8 @@ class App {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        // Ensure proper color rendering (sRGB output)
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.container.appendChild(this.renderer.domElement);
         
         // Controls - COMPLETELY DISABLE AUTO ROTATION

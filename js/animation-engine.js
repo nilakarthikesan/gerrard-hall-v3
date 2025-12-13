@@ -35,7 +35,7 @@ export class AnimationEngine {
         console.log("=== ANIMATION ENGINE ===");
         console.log(`Clusters in merge tree: ${treeNodes.size}`);
         console.log("Tree nodes:", Array.from(treeNodes));
-
+            
         // Build events using POST-ORDER traversal
         // This means: children appear BEFORE parents
         // Leaves appear first, then their parents, then grandparents, etc.
@@ -60,7 +60,7 @@ export class AnimationEngine {
             
             processedPaths.add(node.path);
         };
-        
+
         addEventsPostOrder(root);
         
         console.log(`Total events: ${this.mergeEvents.length}`);
@@ -104,7 +104,7 @@ export class AnimationEngine {
                 if (cluster.assembledPosition) {
                     cluster.group.position.copy(cluster.assembledPosition);
                 } else {
-                    cluster.group.position.copy(cluster.slabPosition);
+                cluster.group.position.copy(cluster.slabPosition);
                 }
             }
             

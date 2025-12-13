@@ -116,7 +116,10 @@ export class DataLoader {
             if (positions.length > 0) {
                 const geometry = new THREE.BufferGeometry();
                 geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-                geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                
+                // Create color attribute with proper color space handling
+                const colorAttr = new THREE.Float32BufferAttribute(colors, 3);
+                geometry.setAttribute('color', colorAttr);
                 
                 // Compute bounding sphere for radius
                 geometry.computeBoundingSphere();
@@ -137,14 +140,12 @@ export class DataLoader {
                     sumZ / posAttr.count
                 );
 
-                // Simple point material - larger points for denser, more filled appearance
-                // Note: Density is determined by GTSfM output (~24k points for merged)
-                // We can only make existing points larger to fill gaps
+                // Point material with vertex colors from the RGB data
                 const material = new THREE.PointsMaterial({
-                    size: 5.0,  // Larger points to fill gaps and show colors better
-                    vertexColors: true,
+                    size: 3.0,  // Point size in pixels
+                    vertexColors: true,  // Use colors from geometry
                     sizeAttenuation: false,  // Fixed pixel size regardless of distance
-                    transparent: false,
+                    transparent: true,  // Enable for fade animations
                     opacity: 1.0
                 });
 
@@ -220,9 +221,9 @@ export class DataLoader {
         console.log(`Size: ${sizeX.toFixed(2)} x ${sizeY.toFixed(2)} x ${sizeZ.toFixed(2)}`);
         console.log(`Radius: ${this.globalRadius.toFixed(2)}`);
         
-        // Scale factor to make the building fill a good portion of the screen
-        // Target size of ~150 units for better visibility
-        const TARGET_SIZE = 150;
+        // Scale factor to make the building fit well on screen
+        // Smaller target size for better initial view
+        const TARGET_SIZE = 300;  // Even larger size for better visibility (80% of screen)
         this.scaleFactor = this.globalRadius > 0 ? TARGET_SIZE / this.globalRadius : 1.0;
         
         console.log(`Scale factor: ${this.scaleFactor.toFixed(2)}`);
@@ -230,6 +231,7 @@ export class DataLoader {
         // Now normalize all clusters:
         // 1. Center them around (0,0,0)
         // 2. Scale them uniformly
+        // 3. Rotate to show front view of Gerrard Hall
         for (const [path, cluster] of this.clusters) {
             if (cluster.pointCloud && cluster.pointCloud.geometry) {
                 const geometry = cluster.pointCloud.geometry;
@@ -244,18 +246,34 @@ export class DataLoader {
                 // Scale uniformly
                 geometry.scale(this.scaleFactor, this.scaleFactor, this.scaleFactor);
                 
+                // Rotate to show front view of Gerrard Hall right-side up
+                // 1. Rotate 180 degrees around X-axis to flip upright
+                geometry.rotateX(Math.PI);
+                // 2. Rotate 180 degrees around Y-axis to face front
+                geometry.rotateY(Math.PI);
+                
                 // Update bounding sphere
                 geometry.computeBoundingSphere();
                 
                 // Update cluster's original center (also needs to be transformed)
                 cluster.originalCenter.sub(this.globalCenter);
                 cluster.originalCenter.multiplyScalar(this.scaleFactor);
+                // Also rotate the original center (X rotation flips Y and Z, Y rotation flips X and Z)
+                const x = cluster.originalCenter.x;
+                const y = cluster.originalCenter.y;
+                const z = cluster.originalCenter.z;
+                // After X rotation by PI: y -> -y, z -> -z
+                // After Y rotation by PI: x -> -x, z -> -z (but z already flipped, so back to z)
+                cluster.originalCenter.x = -x;
+                cluster.originalCenter.y = -y;
+                cluster.originalCenter.z = z;
                 
                 // Update radius
                 cluster.radius = geometry.boundingSphere.radius;
                 
-                // Update point size - balanced for visibility without being blocky
-                cluster.pointCloud.material.size = 0.6;  // Smaller points for finer detail
+                // Update point size - larger for visibility when camera is close
+                cluster.pointCloud.material.size = 2.0;  // Larger point size for better visibility
+                cluster.pointCloud.material.needsUpdate = true;
             }
         }
         
@@ -298,10 +316,12 @@ export class DataLoader {
     }
 
     getStructure() {
+        // Complete GTSfM output structure with all 19 ba_output + 19 merged = 38 folders
         return {
-            'ba_gt': { type: 'ba_output', children: [] },
-            'ba_input': { type: 'ba_output', children: [] },
+            // Root level ba_output
             'ba_output': { type: 'ba_output', children: [] },
+            
+            // C_1 branch (simple - 2 children)
             'C_1': {
                 'ba_output': { type: 'ba_output', children: [] },
                 'C_1_1': {
@@ -314,21 +334,53 @@ export class DataLoader {
                 },
                 'merged': { type: 'merged', children: ['C_1/ba_output', 'C_1/C_1_1/merged', 'C_1/C_1_2/merged'] }
             },
+            
+            // C_2 branch (leaf)
             'C_2': {
                 'ba_output': { type: 'ba_output', children: [] },
                 'merged': { type: 'merged', children: ['C_2/ba_output'] }
             },
+            
+            // C_3 branch (leaf)
             'C_3': {
                 'ba_output': { type: 'ba_output', children: [] },
                 'merged': { type: 'merged', children: ['C_3/ba_output'] }
             },
+            
+            // C_4 branch (deep hierarchy)
             'C_4': {
                 'ba_output': { type: 'ba_output', children: [] },
                 'C_4_1': {
                     'ba_output': { type: 'ba_output', children: [] },
                     'C_4_1_1': {
                         'ba_output': { type: 'ba_output', children: [] },
-                        'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/ba_output'] }
+                        // C_4_1_1_1 sub-branch
+                        'C_4_1_1_1': {
+                            'ba_output': { type: 'ba_output', children: [] },
+                            'C_4_1_1_1_1': {
+                                'ba_output': { type: 'ba_output', children: [] },
+                                'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_1/C_4_1_1_1_1/ba_output'] }
+                            },
+                            'C_4_1_1_1_2': {
+                                'ba_output': { type: 'ba_output', children: [] },
+                                'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_1/C_4_1_1_1_2/ba_output'] }
+                            },
+                            'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_1/ba_output', 'C_4/C_4_1/C_4_1_1/C_4_1_1_1/C_4_1_1_1_1/merged', 'C_4/C_4_1/C_4_1_1/C_4_1_1_1/C_4_1_1_1_2/merged'] }
+                        },
+                        // C_4_1_1_2 sub-branch
+                        'C_4_1_1_2': {
+                            'ba_output': { type: 'ba_output', children: [] },
+                            'C_4_1_1_2_1': {
+                                'ba_output': { type: 'ba_output', children: [] },
+                                'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_2/C_4_1_1_2_1/ba_output'] }
+                            },
+                            'C_4_1_1_2_2': {
+                                'ba_output': { type: 'ba_output', children: [] },
+                                'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_2/C_4_1_1_2_2/ba_output'] }
+                            },
+                            'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/C_4_1_1_2/ba_output', 'C_4/C_4_1/C_4_1_1/C_4_1_1_2/C_4_1_1_2_1/merged', 'C_4/C_4_1/C_4_1_1/C_4_1_1_2/C_4_1_1_2_2/merged'] }
+                        },
+                        'merged': { type: 'merged', children: ['C_4/C_4_1/C_4_1_1/ba_output', 'C_4/C_4_1/C_4_1_1/C_4_1_1_1/merged', 'C_4/C_4_1/C_4_1_1/C_4_1_1_2/merged'] }
                     },
                     'C_4_1_2': {
                         'ba_output': { type: 'ba_output', children: [] },
@@ -350,6 +402,8 @@ export class DataLoader {
                 },
                 'merged': { type: 'merged', children: ['C_4/ba_output', 'C_4/C_4_1/merged', 'C_4/C_4_2/merged'] }
             },
+            
+            // Root merged (final)
             'merged': { type: 'merged', children: ['ba_output', 'C_1/merged', 'C_2/merged', 'C_3/merged', 'C_4/merged'] }
         };
     }
