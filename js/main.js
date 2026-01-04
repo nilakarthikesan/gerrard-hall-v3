@@ -96,54 +96,54 @@ class App {
 
     async start() {
         try {
-            this.dataLoader.onProgress = (loaded, total) => {
-                this.ui.loadingText.textContent = `Loading Clusters... ${loaded}/${total}`;
-            };
+        this.dataLoader.onProgress = (loaded, total) => {
+            this.ui.loadingText.textContent = `Loading Clusters... ${loaded}/${total}`;
+        };
 
-            const clusters = await this.dataLoader.load();
+        const clusters = await this.dataLoader.load();
             
             if (clusters.size === 0) {
                 throw new Error("No clusters loaded. Check console/network.");
             }
         
-            // Add all cluster groups to world
-            for (const cluster of clusters.values()) {
-                this.worldGroup.add(cluster.group);
-            }
+        // Add all cluster groups to world
+        for (const cluster of clusters.values()) {
+            this.worldGroup.add(cluster.group);
+        }
 
             // 1. Layout Engine - computes positions
-            this.layoutEngine = new LayoutEngine(clusters);
-            this.layoutEngine.computeLayout();
+        this.layoutEngine = new LayoutEngine(clusters);
+        this.layoutEngine.computeLayout();
 
             // 2. Fit camera to the layout bounds
             this.fitCameraToLayout();
 
             // 3. Animation Timeline - ONLY includes merge tree nodes (no orphans)
             this.animationEngine = new AnimationEngine(clusters, this.layoutEngine);
-            this.events = this.animationEngine.initTimeline();
-            this.currentEventIndex = 0;
+        this.events = this.animationEngine.initTimeline();
+        this.currentEventIndex = 0;
 
             // 4. Interaction
-            this.interactionEngine = new InteractionEngine(
-                this.camera, 
-                this.renderer.domElement, 
-                clusters, 
-                this.orbitControls
-            );
+        this.interactionEngine = new InteractionEngine(
+            this.camera, 
+            this.renderer.domElement, 
+            clusters, 
+            this.orbitControls
+        );
 
             // 5. Camera Engine
-            this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
+        this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
 
             // Initial State: Show first event (first leaf cluster)
             if (this.events.length > 0) {
-                this.animationEngine.applyEventInstant(0);
+        this.animationEngine.applyEventInstant(0);
             }
-            this.updateUI();
+        this.updateUI();
 
-            this.ui.loading.style.display = 'none';
-            
+        this.ui.loading.style.display = 'none';
+        
             // Start render loop
-            this.animate();
+        this.animate();
             
         } catch (err) {
             console.error("App Start Error:", err);

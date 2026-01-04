@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head><title>Centroid Check</title></head>
+<body>
+<pre id="output">Loading...</pre>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+<script type="module">
+import { DataLoader } from './js/data-loader.js?v=999';
+
+const loader = new DataLoader();
+await loader.loadAllClusters();
+
+let output = "=== REAL CENTROID DATA ===\n\n";
+output += "Cluster Path | Original Center (X, Y, Z) | Radius\n";
+output += "─".repeat(70) + "\n";
+
+const sorted = [...loader.clusters.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+for (const [path, cluster] of sorted) {
+    if (cluster.originalCenter) {
+        const c = cluster.originalCenter;
+        output += `${path.padEnd(45)} | (${c.x.toFixed(1)}, ${c.y.toFixed(1)}, ${c.z.toFixed(1)}).padEnd(20) | ${cluster.radius?.toFixed(1) || 'N/A'}\n`;
+    }
+}
+
+document.getElementById('output').textContent = output;
+console.log(output);
+</script>
+</body>
+</html>

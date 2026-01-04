@@ -97,12 +97,16 @@
             background: rgba(100, 220, 255, 0.3);
             color: #64dcff;
         }
+        .badge.centroid {
+            background: rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+        }
     </style>
 </head>
 <body>
     <h1>Gerrard Hall</h1>
     <div class="subtitle">3D Reconstruction Visualization</div>
-    
+        
     <div class="cards">
         <a href="puzzle.html" class="card">
             <h2>Puzzle Assembly</h2>
@@ -115,7 +119,7 @@
             <p>Explore the merge tree structure with clusters arranged in layers showing parent-child relationships.</p>
             <div class="badge hierarchy">Tree Layout</div>
         </a>
-        
+
         <a href="slab.html" class="card">
             <h2>Slab View</h2>
             <p>Watch clusters merge on transparent sheets of glass, revealing the hierarchical reconstruction process.</p>
@@ -132,6 +136,18 @@
             <h2>Timeline Alpha</h2>
             <p>Watch individual points flow and merge with alpha blending. Points interpolate from constituent clusters to merged results.</p>
             <div class="badge alpha">Point Interpolation</div>
+        </a>
+        
+        <a href="timeline-centroid.html" class="card">
+            <h2>Timeline Centroid</h2>
+            <p>Hard-coded layout based on folder hierarchy. Clusters spread in a tree-like structure.</p>
+            <div class="badge centroid">V1 - Layout</div>
+        </a>
+        
+        <a href="timeline-centroid-v2.html" class="card">
+            <h2>Branch-Based Grouping (V2)</h2>
+            <p>Clusters grouped by TOP-LEVEL BRANCH (C_1, C_2, C_3, C_4). All clusters in a branch appear together, enabling local merges before final assembly.</p>
+            <div class="badge centroid">V2 - Branch Grouping</div>
         </a>
     </div>
 </body>

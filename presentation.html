@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTSfM Centroid View - Presentation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: #0a0a0f;
+            color: #e8e8e8;
+            overflow: hidden;
+        }
+        
+        .slide {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            padding: 60px 80px;
+            position: relative;
+        }
+        
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .slide-number {
+            position: absolute;
+            bottom: 30px;
+            right: 40px;
+            font-size: 14px;
+            color: #666;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #00d4aa, #00a8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        h2 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #00d4aa;
+            margin: 30px 0 15px 0;
+        }
+        
+        h3 {
+            font-size: 20px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        
+        .content {
+            flex: 1;
+            display: flex;
+            gap: 60px;
+        }
+        
+        .column {
+            flex: 1;
+        }
+        
+        .diagram {
+            background: #12121a;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            padding: 30px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre;
+            color: #aaa;
+        }
+        
+        .diagram .highlight {
+            color: #00d4aa;
+        }
+        
+        .diagram .accent {
+            color: #ff6b6b;
+        }
+        
+        .diagram .blue {
+            color: #00a8ff;
+        }
+        
+        .comparison {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .comparison-box {
+            flex: 1;
+            background: #12121a;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #2a2a3a;
+        }
+        
+        .comparison-box.bad {
+            border-color: #ff4444;
+        }
+        
+        .comparison-box.good {
+            border-color: #00d4aa;
+        }
+        
+        .comparison-box h4 {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        .comparison-box.bad h4 {
+            color: #ff6b6b;
+        }
+        
+        .comparison-box.good h4 {
+            color: #00d4aa;
+        }
+        
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+            color: #bbb;
+        }
+        
+        li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: #00d4aa;
+        }
+        
+        .video-placeholder {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px dashed #00d4aa;
+            border-radius: 12px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .video-placeholder span {
+            font-size: 48px;
+        }
+        
+        .video-placeholder p {
+            color: #00d4aa;
+            font-size: 14px;
+        }
+        
+        .phase-timeline {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .phase {
+            flex: 1;
+            background: #12121a;
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid;
+        }
+        
+        .phase.p1 { border-color: #00d4aa; }
+        .phase.p2 { border-color: #888; }
+        .phase.p3 { border-color: #00a8ff; }
+        .phase.p4 { border-color: #ff6b6b; }
+        
+        .phase h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .phase.p1 h4 { color: #00d4aa; }
+        .phase.p2 h4 { color: #888; }
+        .phase.p3 h4 { color: #00a8ff; }
+        .phase.p4 h4 { color: #ff6b6b; }
+        
+        .phase p {
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .future-box {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            border: 1px solid #00a8ff;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+        
+        .future-box h4 {
+            color: #00a8ff;
+            margin-bottom: 15px;
+        }
+        
+        .nav {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav button {
+            background: #1a1a2e;
+            border: 1px solid #2a2a3a;
+            color: #888;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .nav button:hover {
+            background: #00d4aa;
+            color: #0a0a0f;
+            border-color: #00d4aa;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        
+        .tag.old { background: #3a2020; color: #ff6b6b; }
+        .tag.new { background: #1a3a2a; color: #00d4aa; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #2a2a3a;
+        }
+        
+        th {
+            color: #00d4aa;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        td {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .key-point {
+            background: #1a1a2e;
+            border-left: 4px solid #00d4aa;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .key-point strong {
+            color: #00d4aa;
+        }
+    </style>
+</head>
+<body>
+    <!-- SLIDE 1: Problem & Solution -->
+    <div class="slide active" id="slide1">
+        <h1>Timeline Centroid View</h1>
+        <h3>Geometric 3D positioning for GTSfM cluster visualization</h3>
+        
+        <div class="content">
+            <div class="column">
+                <h2>The Problem</h2>
+                <div class="comparison">
+                    <div class="comparison-box bad">
+                        <h4><span class="tag old">BEFORE</span> Hierarchical Layout</h4>
+                        <ul>
+                            <li>Position = folder depth in output</li>
+                            <li>No spatial meaning</li>
+                            <li>Top of building could be anywhere</li>
+                            <li>Merges moved "up" abstractly</li>
+                            <li>Didn't show reconstruction process</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="diagram" style="margin-top: 20px;">
+<span class="accent">BEFORE:</span> Arbitrary positioning
+
+     Level 3:    <span class="blue">merged</span> (root)
+                    │
+     Level 2:    ┌──┴──┐
+              C_1   C_4
+                    │
+     Level 1:    leaves...
+
+<span class="highlight">Position = How deep in folder tree</span>
+                </div>
+            </div>
+            
+            <div class="column">
+                <h2>Our Solution</h2>
+                <div class="comparison">
+                    <div class="comparison-box good">
+                        <h4><span class="tag new">NOW</span> Centroid Layout</h4>
+                        <ul>
+                            <li>Position = actual 3D centroid</li>
+                            <li>Spatial meaning preserved</li>
+                            <li>Top of building at top of screen</li>
+                            <li>Merges converge toward center</li>
+                            <li>Shows physical reconstruction</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="diagram" style="margin-top: 20px;">
+<span class="highlight">NOW:</span> Geometric positioning
+
+         <span class="blue">●ROOT</span> (0, 90)
+            │
+    ┌───────┼───────┐
+    │       │       │
+  <span class="highlight">●C_1</span>    <span class="highlight">●C_2 ●C_3</span>    <span class="highlight">●C_4</span>
+ (-120)  (center)   (120)
+    │               │
+ ┌──┴──┐       ┌────┴────┐
+ ●    ●        ●    ●    ●
+
+<span class="accent">Position = Where in the building!</span>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">1 / 3</div>
+    </div>
+    
+    <!-- SLIDE 2: How It Works -->
+    <div class="slide" id="slide2">
+        <h1>How the Visualization Works</h1>
+        <h3>38 events across 3 meaningful phases</h3>
+        
+        <div class="content">
+            <div class="column">
+                <div class="phase-timeline">
+                    <div class="phase p1">
+                        <h4>PHASE 1: Appear</h4>
+                        <p><strong>Events 1-19</strong></p>
+                        <p>19 clusters fade in at their geometric positions</p>
+                        <p><em>2.5s per cluster</em></p>
+                    </div>
+                    <div class="phase p2">
+                        <h4>PHASE 2: Transition</h4>
+                        <p><strong>Events 20-30</strong></p>
+                        <p>Internal state swap (instant, not animated)</p>
+                        <p><em>~0.1s each</em></p>
+                    </div>
+                    <div class="phase p3">
+                        <h4>PHASE 3: Merge</h4>
+                        <p><strong>Events 31-37</strong></p>
+                        <p>Clusters implode toward combined centroid</p>
+                        <p><em>5s per merge</em></p>
+                    </div>
+                    <div class="phase p4">
+                        <h4>PHASE 4: Final</h4>
+                        <p><strong>Event 38</strong></p>
+                        <p>All clusters converge to center</p>
+                        <p><em>8s total</em></p>
+                    </div>
+                </div>
+                
+                <h2>Merge Animation</h2>
+                <div class="diagram">
+<span class="highlight">BEFORE:</span>          <span class="blue">DURING:</span>           <span class="accent">AFTER:</span>
+
+   ●A      ●B        ●A ──→ <span class="highlight">●M</span> ←── ●B        <span class="highlight">●M</span>
+                                          (merged)
+   ●C                ●C ──→ <span class="highlight">●M</span>
+
+   Separate          Converging          Combined!
+   clusters          to center           at centroid
+                </div>
+            </div>
+            
+            <div class="column">
+                <h2>Live Demo</h2>
+                <div class="video-placeholder">
+                    <span>🎬</span>
+                    <p>INSERT VIDEO: Full visualization recording</p>
+                    <p style="color: #666; font-size: 12px;">Record at localhost:8087/timeline-centroid.html</p>
+                </div>
+                
+                <div class="key-point">
+                    <strong>Key Feature:</strong> Camera auto-tracks the action. Zooms to each cluster during appearance, frames merge areas during combining, pulls back for final assembly.
+                </div>
+                
+                <div class="key-point">
+                    <strong>Animation Completion:</strong> System waits for each animation to finish + viewing time before advancing. No more rushed transitions.
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">2 / 3</div>
+    </div>
+    
+    <!-- SLIDE 3: Design & Future -->
+    <div class="slide" id="slide3">
+        <h1>Design Decisions & Future Plans</h1>
+        <h3>Why we made these choices and what's next</h3>
+        
+        <div class="content">
+            <div class="column">
+                <h2>Key Design Decisions</h2>
+                
+                <table>
+                    <tr>
+                        <th>Decision</th>
+                        <th>Reason</th>
+                    </tr>
+                    <tr>
+                        <td>Hard-coded positions</td>
+                        <td>GTSfM folders don't encode 3D data</td>
+                    </tr>
+                    <tr>
+                        <td>Removed "lock in" animation</td>
+                        <td>No visible change - just confusing</td>
+                    </tr>
+                    <tr>
+                        <td>Slower animations (3-5s)</td>
+                        <td>Let viewers see full transition</td>
+                    </tr>
+                    <tr>
+                        <td>Animation completion check</td>
+                        <td>Don't advance until done</td>
+                    </tr>
+                    <tr>
+                        <td>Auto-tracking camera</td>
+                        <td>Always see the action</td>
+                    </tr>
+                </table>
+                
+                <h2>Before vs After</h2>
+                <div class="diagram">
+<span class="accent">OLD:</span>                     <span class="highlight">NEW:</span>
+─────────────────────────────────────────────
+By folder depth         By 3D centroid
+Abstract hierarchy      Spatial layout
+Move "up" levels        Implode to center
+Fixed camera            Auto-tracking
+Fast, overlapping       Slow, complete
+Animated lock-ins       Instant (skipped)
+                </div>
+            </div>
+            
+            <div class="column">
+                <h2>Future: Alpha Blending</h2>
+                
+                <div class="future-box">
+                    <h4>Point-Level Interpolation (Coming Soon)</h4>
+                    <p style="color: #aaa; margin-bottom: 15px;">Instead of fading clusters, animate individual POINTS:</p>
+                    
+                    <div class="diagram" style="background: transparent; border: none; padding: 0;">
+<span class="blue">Current:</span>  Cluster A fades → Merged fades in
+
+<span class="highlight">Future:</span>   Each point flows to its new position
+          
+          Cluster A: ●●●●●●●●
+                      ╲ ╲ ╲ ╲
+                       ↘ ↘ ↘ ↘
+          Merged:        ●●●●●●●●●●●●
+                       ↗ ↗ ↗ ↗
+                      ╱ ╱ ╱ ╱
+          Cluster B: ●●●●●●●●
+                    </div>
+                </div>
+                
+                <h2 style="margin-top: 25px;">Alpha Blending Features</h2>
+                <ul>
+                    <li><strong>Motion trails</strong> - Points leave fading trails</li>
+                    <li><strong>Point interpolation</strong> - Each point animates source → target</li>
+                    <li><strong>Keyframe blending</strong> - Smooth state transitions</li>
+                    <li><strong>Flock effect</strong> - Organic, coordinated movement</li>
+                </ul>
+                
+                <div class="key-point" style="margin-top: 20px;">
+                    <strong>Prototype exists:</strong> See <code>timeline-alpha.html</code> for working demo. Next step is integrating this INTO the centroid view.
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">3 / 3</div>
+    </div>
+    
+    <!-- Navigation -->
+    <div class="nav">
+        <button onclick="prevSlide()">← Previous</button>
+        <button onclick="nextSlide()">Next →</button>
+        <button onclick="openDemo()">Open Live Demo</button>
+    </div>
+    
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 3;
+        
+        function showSlide(n) {
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            document.getElementById(`slide${n}`).classList.add('active');
+            currentSlide = n;
+        }
+        
+        function nextSlide() {
+            if (currentSlide < totalSlides) showSlide(currentSlide + 1);
+        }
+        
+        function prevSlide() {
+            if (currentSlide > 1) showSlide(currentSlide - 1);
+        }
+        
+        function openDemo() {
+            window.open('http://localhost:8087/timeline-centroid.html', '_blank');
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+    </script>
+</body>
+</html>
+
