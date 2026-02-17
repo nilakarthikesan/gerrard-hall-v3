@@ -101,6 +101,18 @@
             background: rgba(0, 212, 255, 0.3);
             color: #00d4ff;
         }
+        .badge.vggt {
+            background: rgba(33, 150, 243, 0.3);
+            color: #64B5F6;
+        }
+        .card.featured {
+            border-color: rgba(33, 150, 243, 0.4);
+            background: rgba(33, 150, 243, 0.08);
+        }
+        .card.featured:hover {
+            border-color: rgba(33, 150, 243, 0.6);
+            background: rgba(33, 150, 243, 0.15);
+        }
     </style>
 </head>
 <body>
@@ -108,6 +120,12 @@
     <div class="subtitle">3D Reconstruction Visualization</div>
         
     <div class="cards">
+        <a href="hierarchy-vggt.html" class="card featured">
+            <h2>VGGT Squareness Layout</h2>
+            <p>New VGGT pipeline with squareness-optimized recursive rectangle subdivision. Clusters placed in maximally-square sub-regions.</p>
+            <div class="badge vggt">VGGT Pipeline — New</div>
+        </a>
+
         <a href="puzzle.html" class="card">
             <h2>Puzzle Assembly</h2>
             <p>Watch clusters explode outward and assemble back together like puzzle pieces forming the complete building.</p>
