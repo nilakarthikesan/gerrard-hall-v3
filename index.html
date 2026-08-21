@@ -260,7 +260,7 @@
             <button class="demo-tab" data-dataset="C_4">Dense community collection</button>
         </div>
         <div class="demo-frame-wrap">
-            <iframe id="demo-frame" src="hierarchy-vggt.html?dataset=BRUSSELS&embed=1&v=2" title="Interactive hierarchical reconstruction demo" loading="lazy"></iframe>
+            <iframe id="demo-frame" src="hierarchy-vggt.html?dataset=BRUSSELS&embed=1&v=3" title="Interactive hierarchical reconstruction demo" loading="lazy"></iframe>
         </div>
         <div class="demo-hint">
             <span>Drag to orbit &middot; scroll to zoom &middot; right-drag to pan &middot; click the timeline to jump between merge events</span>
@@ -407,7 +407,7 @@
         tab.addEventListener('click', () => {
             document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            frame.src = `hierarchy-vggt.html?dataset=${tab.dataset.dataset}&embed=1&v=2`;
+            frame.src = `hierarchy-vggt.html?dataset=${tab.dataset.dataset}&embed=1&v=3`;
         });
     });
 </script>

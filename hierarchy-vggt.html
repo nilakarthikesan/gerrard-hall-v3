@@ -137,12 +137,12 @@
         #controls {
             pointer-events: auto;
             background: rgba(255, 255, 255, 0.95);
-            padding: 12px 18px;
+            padding: 10px 16px;
             border-radius: 12px;
             border: 1px solid #e0e0e0;
-            width: 420px;
+            width: 380px;
             align-self: center;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             transition: all 0.3s ease;
@@ -155,6 +155,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
+        }
+        #controls #event-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
         }
         #controls .toggle-icon {
             font-size: 10px;
@@ -179,7 +188,7 @@
             height: 6px;
             background: #eee;
             border-radius: 3px;
-            margin: 15px 0;
+            margin: 10px 0;
             cursor: pointer;
         }
         .progress-bar {
@@ -487,6 +496,35 @@
         body.dark-theme .annotation-step { color: #64B5F6; }
         body.dark-theme .annotation-title { color: #e0e0e0; }
         body.dark-theme .annotation-desc { color: #999; }
+        /* Floating background toggle (white/dark) - always available, incl. embed */
+        #btn-bg {
+            pointer-events: auto;
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 60;
+            display: none;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e0e0e0;
+            color: #666;
+            padding: 7px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+        #btn-bg:hover { background: #fff; color: #333; border-color: #ccc; }
+        body.dark-theme #btn-bg {
+            background: rgba(30, 30, 30, 0.9);
+            border-color: #333;
+            color: #ccc;
+        }
+        body.dark-theme #btn-bg:hover { background: #333; color: #fff; border-color: #555; }
+        body.embed-mode #btn-bg { display: inline-block; }
+
         /* Embed mode (?embed=1): chrome-free viewer for the paper page iframe.
            .top-bar keeps its flex slot (visibility) so #controls stays bottom-anchored. */
         body.embed-mode .top-bar {
@@ -495,10 +533,29 @@
         body.embed-mode #visual-settings {
             display: none !important;
         }
-        body.embed-mode .annotation-card {
-            max-width: 340px;
-            font-size: 12px;
+        /* Move the annotation out of the center to the top-left corner (top bar is
+           hidden in embed), and slim the timeline so neither blocks the model. */
+        body.embed-mode #annotation-overlay {
+            top: 14px;
+            left: 14px;
+            bottom: auto;
+            max-width: 300px;
         }
+        body.embed-mode .annotation-card {
+            max-width: 300px;
+            font-size: 11.5px;
+            padding: 8px 12px;
+        }
+        body.embed-mode #controls {
+            width: 340px;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.82);
+        }
+        body.embed-mode.dark-theme #controls {
+            background: rgba(24, 24, 24, 0.82);
+        }
+        body.embed-mode #controls .stats { display: none; }
     </style>
     <script>
         if (new URLSearchParams(location.search).get('embed') === '1') {
@@ -510,6 +567,7 @@
 <body>
     <div id="container">
         <div id="canvas-container"></div>
+        <button id="btn-bg" title="Toggle white / dark background">White BG</button>
         
         <div id="loading">
             <div class="spinner"></div>
@@ -578,6 +636,7 @@
                         <label for="bg-select">Background</label>
                         <select id="bg-select">
                             <option value="none">Plain</option>
+                            <option value="white">White</option>
                             <option value="sunset">Warm Sunset</option>
                             <option value="cool">Cool Blue</option>
                             <option value="gray">Neutral Gray</option>
@@ -681,6 +740,6 @@
         };
     </script>
 
-    <script type="module" src="./js/main-hierarchy-vggt.js?v=44"></script>
+    <script type="module" src="./js/main-hierarchy-vggt.js?v=45"></script>
 </body>
 </html>
