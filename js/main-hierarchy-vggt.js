@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { VGGTDataLoader, DATASETS } from './data-loader-vggt.js?v=42';
-import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=41';
+import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=42';
 import { InteractionEngine } from './interaction-engine.js?v=5';
 import { SquarenessAnimationEngine } from './animation-engine-squareness.js?v=41';
 import { CameraEngine } from './camera-engine.js?v=40';
@@ -783,7 +783,7 @@ class VGGTHierarchyApp {
 
         const distForHeight = (height / 2) / Math.tan(vFovRad);
         const distForWidth = (width / 2) / Math.tan(hFovRad);
-        const margin = isFinalEvent ? 1.45 : 1.05;
+        const margin = isFinalEvent ? 1.15 : 1.05;
         let dist = Math.max(distForHeight, distForWidth) * margin;
         dist = Math.max(dist, 8);
 
@@ -836,7 +836,7 @@ class VGGTHierarchyApp {
 
         const distForHeight = (height / 2) / Math.tan(vFovRad);
         const distForWidth = (width / 2) / Math.tan(hFovRad);
-        let dist = Math.max(distForHeight, distForWidth) * 1.4;
+        let dist = Math.max(distForHeight, distForWidth) * 1.15;
         dist = Math.max(dist, 8);
 
         const targetPos = new THREE.Vector3(centerX, centerY, dist);
