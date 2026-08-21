@@ -13,12 +13,13 @@ export class SquarenessLayoutEngine {
         this.bounds = null;
         this.treeNodes = [];
         // Gap between sibling tiles (fraction of the parent's short side). Keeps a
-        // thin visible lane between clusters so they read as distinct.
-        this.PADDING_FRAC = 0.014;
+        // clear lane between clusters so they read as distinct and don't touch.
+        this.PADDING_FRAC = 0.02;
         // Fraction of a tile that a cluster's XY footprint fills (per-axis, whichever
-        // dimension binds first). The footprint fit is robust to outliers, so this
-        // can be high without stray points spilling into neighboring tiles.
-        this.FIT_FRAC = 0.92;
+        // dimension binds first). Below 1 so the small tail of points beyond the
+        // fitted percentile box still stays inside the cell rather than crossing
+        // into a neighbor.
+        this.FIT_FRAC = 0.88;
         this.leafRadiusMap = new Map();
     }
 
@@ -96,7 +97,7 @@ export class SquarenessLayoutEngine {
      * points don't inflate the box and shrink the whole cluster. Returns the
      * center and half-width/height in the cloud's local (pre-scale) coordinates.
      */
-    robustXYExtent(cluster, lowP = 0.025, highP = 0.975) {
+    robustXYExtent(cluster, lowP = 0.01, highP = 0.99) {
         const geom = cluster.pointCloud && cluster.pointCloud.geometry;
         if (!geom || !geom.attributes.position) return null;
         const pos = geom.attributes.position;
