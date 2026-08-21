@@ -12,7 +12,13 @@ export class SquarenessLayoutEngine {
         this.rootCluster = clusters.get('merged');
         this.bounds = null;
         this.treeNodes = [];
-        this.PADDING_FRAC = 0.004;
+        // Gap between sibling tiles (fraction of the parent's short side). Larger
+        // values leave visible lanes between clusters so they read as distinct.
+        this.PADDING_FRAC = 0.02;
+        // Fraction of a tile's short side that a cluster's bounding sphere fills.
+        // Kept below 1 so clusters don't touch tile edges; this also shrinks each
+        // cluster's Z-depth, which is what causes neighbors to overlap when orbited.
+        this.FIT_FRAC = 0.82;
         this.leafRadiusMap = new Map();
     }
 
@@ -145,7 +151,7 @@ export class SquarenessLayoutEngine {
                 c.group.position.copy(c.hierarchyPosition);
 
                 if (c.radius > 0) {
-                    const fitDim = Math.min(c.rect.w, c.rect.h) * 0.96;
+                    const fitDim = Math.min(c.rect.w, c.rect.h) * this.FIT_FRAC;
                     c.fitScale = fitDim / (2 * c.radius);
                     c.group.scale.setScalar(c.fitScale);
                 }
@@ -163,7 +169,7 @@ export class SquarenessLayoutEngine {
                     c.group.position.copy(c.hierarchyPosition);
 
                     if (c.radius > 0 && reg) {
-                        const fitDim = Math.min(reg.w, reg.h) * 0.96;
+                        const fitDim = Math.min(reg.w, reg.h) * this.FIT_FRAC;
                         c.fitScale = fitDim / (2 * c.radius);
                         c.group.scale.setScalar(c.fitScale);
                     }

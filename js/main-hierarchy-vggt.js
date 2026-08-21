@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { VGGTDataLoader, DATASETS } from './data-loader-vggt.js?v=42';
-import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=40';
+import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=41';
 import { InteractionEngine } from './interaction-engine.js?v=5';
 import { SquarenessAnimationEngine } from './animation-engine-squareness.js?v=41';
 import { CameraEngine } from './camera-engine.js?v=40';
@@ -200,6 +200,12 @@ class VGGTHierarchyApp {
             return;
         }
 
+        if (preset === 'white') {
+            this.gradientMesh.visible = false;
+            this.scene.background = new THREE.Color(0xffffff);
+            return;
+        }
+
         const colors = this.gradientPresets[preset];
         if (!colors) return;
 
@@ -240,29 +246,45 @@ class VGGTHierarchyApp {
     }
 
     initTheme() {
-        const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
-        this.isDark = isEmbed || localStorage.getItem('gh-theme') === 'dark';
+        const params = new URLSearchParams(window.location.search);
+        const isEmbed = params.get('embed') === '1';
+        // ?bg=white forces a light start (used by the paper-page demo); otherwise
+        // embed defaults to dark and the standalone viewer honors the saved theme.
+        const forceWhite = params.get('bg') === 'white';
+        this.isDark = forceWhite ? false : (isEmbed || localStorage.getItem('gh-theme') === 'dark');
         if (this.isDark) {
             document.body.classList.add('dark-theme');
             this.scene.background = new THREE.Color(0x0a0a0a);
             document.getElementById('btn-theme').textContent = '\u2600';
+        } else {
+            this.scene.background = new THREE.Color(0xffffff);
         }
         this.updateBloomForTheme();
         if (this.gradientBg !== 'none') {
             this.applyGradientBackground(this.gradientBg);
         }
+        this.updateBgToggleLabel();
+    }
+
+    updateBgToggleLabel() {
+        const btn = document.getElementById('btn-bg');
+        if (btn) btn.textContent = this.isDark ? 'White BG' : 'Dark BG';
     }
 
     toggleTheme() {
         this.isDark = !this.isDark;
         document.body.classList.toggle('dark-theme', this.isDark);
-        if (this.gradientBg === 'none') {
+        if (this.gradientBg === 'none' || this.gradientBg === 'white') {
             this.scene.background = new THREE.Color(this.isDark ? 0x0a0a0a : 0xffffff);
+            if (this.gradientBg === 'white' && !this.isDark) {
+                this.scene.background = new THREE.Color(0xffffff);
+            }
         }
         document.getElementById('btn-theme').textContent = this.isDark ? '\u2600' : '\u263E';
         localStorage.setItem('gh-theme', this.isDark ? 'dark' : 'light');
         this.updateBloomForTheme();
         this.applyBlendModeToAll();
+        this.updateBgToggleLabel();
         if (this.particleEngine) this.particleEngine.setTheme(this.isDark);
         if (this.groundGrid) {
             this.groundGrid.material.opacity = this.isDark ? 0.1 : 0.15;
@@ -317,6 +339,9 @@ class VGGTHierarchyApp {
         this.ui.recordBtn.addEventListener('click', () => this.toggleRecording());
 
         document.getElementById('btn-theme').addEventListener('click', () => this.toggleTheme());
+
+        const bgToggle = document.getElementById('btn-bg');
+        if (bgToggle) bgToggle.addEventListener('click', () => this.toggleTheme());
 
         if (this.ui.blendSelect) {
             this.ui.blendSelect.value = this.blendMode;
