@@ -1,0 +1,21 @@
+# Static site: no build step, publish the repo root as-is.
+[build]
+  publish = "."
+  command = ""
+
+# Point-cloud data is immutable per commit -> cache aggressively.
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML/JS may change between deploys -> always revalidate.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

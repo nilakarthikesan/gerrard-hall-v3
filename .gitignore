@@ -102,3 +102,6 @@ Resume_Official.pdf
 # macOS Finder duplicate artifacts (from Trash restore)
 * 2/
 * 2.*
+
+# Local Netlify folder
+.netlify
