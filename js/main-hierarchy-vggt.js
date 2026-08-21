@@ -5,7 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { VGGTDataLoader, DATASETS } from './data-loader-vggt.js?v=42';
-import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=42';
+import { SquarenessLayoutEngine } from './layout-engine-squareness.js?v=43';
 import { InteractionEngine } from './interaction-engine.js?v=5';
 import { SquarenessAnimationEngine } from './animation-engine-squareness.js?v=41';
 import { CameraEngine } from './camera-engine.js?v=40';
@@ -670,9 +670,10 @@ class VGGTHierarchyApp {
 
             this.cameraEngine = new CameraEngine(this.camera, this.orbitControls);
 
+            // Camera frustums removed from this viewer: they sprawled beyond each
+            // cluster's footprint and overlapped neighbors. The engine is kept as an
+            // empty instance so the syncToEventIndex/show/hide calls stay no-ops.
             this.frustumEngine = new FrustumEngine(this.worldGroup);
-            this.ui.loadingText.textContent = 'Loading camera frustums...';
-            await this.frustumEngine.loadForClusters(clusters, this.dataLoader);
 
             this.particleEngine = new ParticleEngine(this.worldGroup);
             this.particleEngine.enabled = this.particlesEnabled;
