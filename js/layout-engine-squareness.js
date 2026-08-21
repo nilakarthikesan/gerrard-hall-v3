@@ -12,13 +12,13 @@ export class SquarenessLayoutEngine {
         this.rootCluster = clusters.get('merged');
         this.bounds = null;
         this.treeNodes = [];
-        // Gap between sibling tiles (fraction of the parent's short side). Larger
-        // values leave visible lanes between clusters so they read as distinct.
-        this.PADDING_FRAC = 0.02;
-        // Fraction of a tile's short side that a cluster's bounding sphere fills.
-        // Kept below 1 so clusters don't touch tile edges; this also shrinks each
-        // cluster's Z-depth, which is what causes neighbors to overlap when orbited.
-        this.FIT_FRAC = 0.82;
+        // Gap between sibling tiles (fraction of the parent's short side). Keeps a
+        // thin visible lane between clusters so they read as distinct.
+        this.PADDING_FRAC = 0.014;
+        // Fraction of a tile that a cluster's XY footprint fills (per-axis, whichever
+        // dimension binds first). The footprint fit is robust to outliers, so this
+        // can be high without stray points spilling into neighboring tiles.
+        this.FIT_FRAC = 0.92;
         this.leafRadiusMap = new Map();
     }
 
@@ -90,6 +90,65 @@ export class SquarenessLayoutEngine {
         return tiles;
     }
 
+    /**
+     * Robust XY footprint of a cluster's point cloud (the screen-facing extent,
+     * since the camera looks down +Z). Uses percentiles so a few stray outlier
+     * points don't inflate the box and shrink the whole cluster. Returns the
+     * center and half-width/height in the cloud's local (pre-scale) coordinates.
+     */
+    robustXYExtent(cluster, lowP = 0.025, highP = 0.975) {
+        const geom = cluster.pointCloud && cluster.pointCloud.geometry;
+        if (!geom || !geom.attributes.position) return null;
+        const pos = geom.attributes.position;
+        const n = pos.count;
+        if (n === 0) return null;
+
+        const maxSamples = 20000;
+        const step = Math.max(1, Math.floor(n / maxSamples));
+        const xs = [], ys = [];
+        for (let i = 0; i < n; i += step) {
+            xs.push(pos.getX(i));
+            ys.push(pos.getY(i));
+        }
+        xs.sort((a, b) => a - b);
+        ys.sort((a, b) => a - b);
+        const q = (arr, p) => arr[Math.min(arr.length - 1, Math.max(0, Math.round(p * (arr.length - 1))))];
+        const xlo = q(xs, lowP), xhi = q(xs, highP);
+        const ylo = q(ys, lowP), yhi = q(ys, highP);
+        return {
+            cx: (xlo + xhi) / 2,
+            cy: (ylo + yhi) / 2,
+            halfW: Math.max((xhi - xlo) / 2, 1e-3),
+            halfH: Math.max((yhi - ylo) / 2, 1e-3)
+        };
+    }
+
+    /**
+     * Scale a cluster to fill the given rect (fraction FIT_FRAC) based on its XY
+     * footprint, and return the tile-centered world position (footprint centered
+     * in the rect). Falls back to bounding-sphere fit if the footprint is missing.
+     */
+    fitClusterToRect(cluster, rectCenterX, rectCenterY, rectW, rectH) {
+        const ext = this.robustXYExtent(cluster);
+        if (ext) {
+            const sx = (rectW * this.FIT_FRAC) / (2 * ext.halfW);
+            const sy = (rectH * this.FIT_FRAC) / (2 * ext.halfH);
+            cluster.fitScale = Math.min(sx, sy);
+            cluster.group.scale.setScalar(cluster.fitScale);
+            return new THREE.Vector3(
+                rectCenterX - ext.cx * cluster.fitScale,
+                rectCenterY - ext.cy * cluster.fitScale,
+                0
+            );
+        }
+        if (cluster.radius > 0) {
+            const fitDim = Math.min(rectW, rectH) * this.FIT_FRAC;
+            cluster.fitScale = fitDim / (2 * cluster.radius);
+            cluster.group.scale.setScalar(cluster.fitScale);
+        }
+        return new THREE.Vector3(rectCenterX, rectCenterY, 0);
+    }
+
     computeLayout() {
         if (!this.rootCluster) {
             console.error("No root cluster (merged) found!");
@@ -147,14 +206,8 @@ export class SquarenessLayoutEngine {
             if (isLeaf && c.rect) {
                 const cx = c.rect.x + c.rect.w / 2;
                 const cy = c.rect.y + c.rect.h / 2;
-                c.hierarchyPosition = new THREE.Vector3(cx, cy, 0);
+                c.hierarchyPosition = this.fitClusterToRect(c, cx, cy, c.rect.w, c.rect.h);
                 c.group.position.copy(c.hierarchyPosition);
-
-                if (c.radius > 0) {
-                    const fitDim = Math.min(c.rect.w, c.rect.h) * this.FIT_FRAC;
-                    c.fitScale = fitDim / (2 * c.radius);
-                    c.group.scale.setScalar(c.fitScale);
-                }
 
                 minX = Math.min(minX, c.rect.x);
                 maxX = Math.max(maxX, c.rect.x + c.rect.w);
@@ -164,15 +217,14 @@ export class SquarenessLayoutEngine {
             } else if (!isLeaf) {
                 const pos = c.mergeTargetPosition;
                 const reg = c.mergeRegion;
-                if (pos) {
+                if (pos && reg) {
+                    c.hierarchyPosition = this.fitClusterToRect(
+                        c, pos.x, pos.y, reg.w, reg.h
+                    );
+                    c.group.position.copy(c.hierarchyPosition);
+                } else if (pos) {
                     c.hierarchyPosition = pos.clone();
                     c.group.position.copy(c.hierarchyPosition);
-
-                    if (c.radius > 0 && reg) {
-                        const fitDim = Math.min(reg.w, reg.h) * this.FIT_FRAC;
-                        c.fitScale = fitDim / (2 * c.radius);
-                        c.group.scale.setScalar(c.fitScale);
-                    }
                 }
             }
         }
