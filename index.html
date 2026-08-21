@@ -1,172 +1,416 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerrard Hall - Visualization Selector</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            padding: 40px 20px;
-        }
-        h1 {
-            font-size: 3rem;
-            font-weight: 300;
-            margin-bottom: 10px;
-            letter-spacing: 2px;
-        }
-        .subtitle {
-            font-size: 1rem;
-            color: rgba(255,255,255,0.6);
-            margin-bottom: 60px;
-            letter-spacing: 1px;
-        }
-        .cards {
-            display: flex;
-            gap: 40px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .card {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 40px;
-            width: 350px;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-        }
-        .card:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.3);
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        }
-        .card h2 {
-            font-size: 1.5rem;
-            font-weight: 500;
-            margin-bottom: 15px;
-        }
-        .card p {
-            font-size: 0.9rem;
-            color: rgba(255,255,255,0.6);
-            line-height: 1.6;
-        }
-        .badge {
-            display: inline-block;
-            background: rgba(255,255,255,0.15);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            margin-top: 20px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .badge.puzzle {
-            background: rgba(74, 144, 226, 0.3);
-            color: #7eb8ff;
-        }
-        .badge.hierarchy {
-            background: rgba(80, 200, 120, 0.3);
-            color: #7fffaa;
-        }
-        .badge.slab {
-            background: rgba(100, 180, 255, 0.3);
-            color: #88ccff;
-        }
-        .badge.timeline {
-            background: rgba(255, 165, 0, 0.3);
-            color: #ffb347;
-        }
-        .badge.alpha {
-            background: rgba(100, 220, 255, 0.3);
-            color: #64dcff;
-        }
-        .badge.centroid {
-            background: rgba(0, 212, 255, 0.3);
-            color: #00d4ff;
-        }
-        .badge.vggt {
-            background: rgba(33, 150, 243, 0.3);
-            color: #64B5F6;
-        }
-        .card.featured {
-            border-color: rgba(33, 150, 243, 0.4);
-            background: rgba(33, 150, 243, 0.08);
-        }
-        .card.featured:hover {
-            border-color: rgba(33, 150, 243, 0.6);
-            background: rgba(33, 150, 243, 0.15);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hierarchical Structure-from-Motion Scales Feedforward Reconstruction</title>
+<meta name="description" content="A hierarchical SfM framework that enables 3D foundation models to reconstruct large-scale unstructured image collections via nested-dissection partitioning and hierarchical bundle adjustment.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --ink: #1c1917;
+        --ink-soft: #57534e;
+        --ink-faint: #a8a29e;
+        --paper: #fdfcfa;
+        --card: #ffffff;
+        --line: #e7e2dc;
+        --accent: #a05a2c;        /* warm sandstone, matches the point clouds */
+        --accent-soft: #f3e8dd;
+        --serif: "Source Serif 4", Georgia, serif;
+        --sans: "Inter", -apple-system, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+        font-family: var(--sans);
+        background: var(--paper);
+        color: var(--ink);
+        line-height: 1.65;
+        font-size: 16px;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    .wrap-wide { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---- hero ---- */
+    header { padding: 72px 0 40px; text-align: center; }
+    .venue-badge {
+        display: inline-block;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid #e5d3c2;
+        padding: 5px 14px;
+        border-radius: 100px;
+        margin-bottom: 26px;
+    }
+    h1 {
+        font-family: var(--serif);
+        font-size: clamp(30px, 5vw, 46px);
+        font-weight: 700;
+        line-height: 1.18;
+        letter-spacing: -0.01em;
+        max-width: 820px;
+        margin: 0 auto 20px;
+    }
+    .authors {
+        font-size: 17px;
+        color: var(--ink-soft);
+        margin-bottom: 6px;
+    }
+    .affil { font-size: 14px; color: var(--ink-faint); margin-bottom: 30px; }
+    .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 100px;
+        padding: 9px 22px;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+    .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ---- tldr ---- */
+    .tldr {
+        margin: 26px auto 0;
+        max-width: 760px;
+        background: var(--accent-soft);
+        border: 1px solid #e5d3c2;
+        border-radius: 14px;
+        padding: 18px 26px;
+        font-size: 16.5px;
+        text-align: left;
+    }
+    .tldr strong { color: var(--accent); }
+
+    /* ---- sections ---- */
+    section { padding: 44px 0; }
+    section + section { border-top: 1px solid var(--line); }
+    h2 {
+        font-family: var(--serif);
+        font-size: 27px;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+    p + p { margin-top: 14px; }
+    .muted { color: var(--ink-soft); }
+
+    /* ---- demo ---- */
+    .demo-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .demo-tab {
+        font-size: 14.5px;
+        font-weight: 500;
+        padding: 8px 18px;
+        border-radius: 100px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--ink-soft);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .demo-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .demo-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .demo-frame-wrap {
+        position: relative;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #0a0a0a;
+        box-shadow: 0 24px 60px -24px rgba(28, 25, 23, 0.35);
+    }
+    .demo-frame-wrap iframe {
+        display: block;
+        width: 100%;
+        height: 640px;
+        border: 0;
+    }
+    .demo-hint {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        font-size: 13.5px;
+        color: var(--ink-faint);
+    }
+    .demo-hint a { color: var(--accent); font-weight: 500; text-decoration: none; }
+    .demo-hint a:hover { text-decoration: underline; }
+
+    /* ---- pipeline cards ---- */
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-top: 8px; }
+    .step {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px 20px;
+    }
+    .step .num {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+        letter-spacing: 0.08em;
+        margin-bottom: 10px;
+    }
+    .step h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .step p { font-size: 14px; color: var(--ink-soft); line-height: 1.55; }
+
+    /* ---- stats ---- */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin: 26px 0; }
+    .stat {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px 20px;
+        text-align: center;
+    }
+    .stat .value {
+        font-family: var(--serif);
+        font-size: 34px;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1.1;
+    }
+    .stat .label { font-size: 13.5px; color: var(--ink-soft); margin-top: 8px; line-height: 1.45; }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14.5px;
+        margin-top: 18px;
+    }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 600; }
+    td.win { font-weight: 600; color: var(--accent); }
+    .tbl-note { font-size: 13px; color: var(--ink-faint); margin-top: 10px; }
+
+    /* ---- bibtex ---- */
+    pre.bibtex {
+        background: #292524;
+        color: #e7e5e4;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        border-radius: 14px;
+        padding: 22px 26px;
+        overflow-x: auto;
+    }
+
+    footer {
+        border-top: 1px solid var(--line);
+        padding: 34px 0 50px;
+        font-size: 13.5px;
+        color: var(--ink-faint);
+        text-align: center;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 640px) {
+        .demo-frame-wrap iframe { height: 460px; }
+        header { padding: 48px 0 32px; }
+    }
+</style>
 </head>
 <body>
-    <h1>Gerrard Hall</h1>
-    <div class="subtitle">3D Reconstruction Visualization</div>
-        
-    <div class="cards">
-        <a href="hierarchy-vggt.html" class="card featured">
-            <h2>VGGT Squareness Layout</h2>
-            <p>New VGGT pipeline with squareness-optimized recursive rectangle subdivision. Clusters placed in maximally-square sub-regions.</p>
-            <div class="badge vggt">VGGT Pipeline — New</div>
-        </a>
 
-        <a href="puzzle.html" class="card">
-            <h2>Puzzle Assembly</h2>
-            <p>Watch clusters explode outward and assemble back together like puzzle pieces forming the complete building.</p>
-            <div class="badge puzzle">Spatial Animation</div>
-        </a>
-        
-        <a href="hierarchy.html" class="card">
-            <h2>Hierarchy View</h2>
-            <p>Explore the merge tree structure with clusters arranged in layers showing parent-child relationships.</p>
-            <div class="badge hierarchy">Tree Layout</div>
-        </a>
-
-        <a href="slab.html" class="card">
-            <h2>Slab View</h2>
-            <p>Watch clusters merge on transparent sheets of glass, revealing the hierarchical reconstruction process.</p>
-            <div class="badge slab">Sheets of Glass</div>
-        </a>
-        
-        <a href="timeline.html" class="card">
-            <h2>Timeline View</h2>
-            <p>Step through all 38 events of the reconstruction process, from initial clusters to the final merged building.</p>
-            <div class="badge timeline">38 Events</div>
-        </a>
-        
-        <a href="timeline-alpha.html" class="card">
-            <h2>Timeline Alpha</h2>
-            <p>Watch individual points flow and merge with alpha blending. Points interpolate from constituent clusters to merged results.</p>
-            <div class="badge alpha">Point Interpolation</div>
-        </a>
-        
-        <a href="timeline-centroid.html" class="card">
-            <h2>Timeline Centroid</h2>
-            <p>Hard-coded layout based on folder hierarchy. Clusters spread in a tree-like structure.</p>
-            <div class="badge centroid">V1 - Layout</div>
-        </a>
-        
-        <a href="timeline-centroid-v2.html" class="card">
-            <h2>Branch-Based Grouping (V2)</h2>
-            <p>Clusters grouped by TOP-LEVEL BRANCH (C_1, C_2, C_3, C_4). All clusters in a branch appear together, enabling local merges before final assembly.</p>
-            <div class="badge centroid">V2 - Branch Grouping</div>
-        </a>
+<header class="wrap">
+    <div class="venue-badge">ECCV 2026 &middot; Under Review</div>
+    <h1>Hierarchical Structure-from-Motion Scales Feedforward Reconstruction</h1>
+    <div class="authors">Anonymous Authors</div>
+    <div class="affil">Author list withheld for double-blind review &middot; Submission #8</div>
+    <div class="btn-row">
+        <!-- TODO: link the paper PDF / arXiv once public -->
+        <a class="btn primary" href="#demo">&#9654;&nbsp; Interactive Demo</a>
+        <a class="btn" href="#" title="Available upon publication">&#128196;&nbsp; Paper</a>
+        <a class="btn" href="https://github.com/nilakarthikesan/visualization-gtsfm-paper">&#11088;&nbsp; Code &amp; Data</a>
     </div>
+    <div class="tldr">
+        <strong>TL;DR:</strong> We partition the verified view graph with nested dissection, reconstruct each
+        cluster independently with a 3D foundation model (VGGT-&Omega;), and merge the pieces bottom-up with
+        hierarchical bundle adjustment &mdash; scaling feedforward reconstruction to thousands of unstructured
+        internet photos.
+    </div>
+</header>
+
+<section id="demo">
+    <div class="wrap-wide">
+        <h2>Watch the reconstruction assemble itself</h2>
+        <p class="muted" style="max-width:760px; margin-bottom:22px;">
+            The viewer below replays the actual pipeline on real data: each cluster reconstruction appears as
+            VGGT-&Omega; processes its partition, then clusters fuse pairwise up the nested-dissection tree
+            until the final globally consistent model assembles. Press <strong>Play</strong>, or scrub the
+            timeline to any merge event.
+        </p>
+        <div class="demo-tabs">
+            <button class="demo-tab active" data-dataset="BRUSSELS">Grand-Place Brussels &middot; 234 images</button>
+            <button class="demo-tab" data-dataset="original">Gerrard Hall</button>
+            <button class="demo-tab" data-dataset="C_4">Dense community collection</button>
+        </div>
+        <div class="demo-frame-wrap">
+            <iframe id="demo-frame" src="hierarchy-vggt.html?dataset=BRUSSELS&embed=1&v=2" title="Interactive hierarchical reconstruction demo" loading="lazy"></iframe>
+        </div>
+        <div class="demo-hint">
+            <span>Drag to orbit &middot; scroll to zoom &middot; right-drag to pan &middot; click the timeline to jump between merge events</span>
+            <a href="hierarchy-vggt.html?dataset=BRUSSELS" target="_blank">Open the full visualizer with all controls &nearr;</a>
+        </div>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>Abstract</h2>
+        <p class="muted">
+            3D foundation models have opened a new era for scene reconstruction. By leveraging large-scale
+            pretraining, they bypass traditional Structure-from-Motion (SfM) pipelines and achieve feed-forward,
+            generalizable performance across diverse scenes. However, their scalability remains limited by GPU
+            memory constraints when applied to larger scenes. Several efforts have been made to mitigate these
+            issues, such as developing more efficient model architectures or sequentially feeding smaller portions
+            of the scene into the model. Nevertheless, scalability and flexibility remain challenging &mdash;
+            particularly when reconstructing from large-scale, unstructured image collections. Therefore, we
+            introduce a global reconstruction framework that constructs a verified visibility graph using
+            cross-image retrieval and then computes a Nested Dissection (ND) based ordering to create a
+            hierarchical tree of smaller, overlapping subgraphs. Each subgraph is reconstructed independently
+            using a 3D foundation model, and the resulting local reconstructions are merged through a hierarchical
+            bundle adjustment that jointly optimizes camera poses and 3D structures via shared cameras and
+            correspondences. We demonstrate the effectiveness of our method on large scenes with VGGT-&Omega;,
+            achieving competitive and, in several cases, state-of-the-art reconstruction accuracy on standard
+            benchmarks.
+        </p>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>How the pipeline works</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="num">STEP 01</div>
+                <h3>Verified view graph</h3>
+                <p>MegaLoc retrieval proposes candidate pairs (O(kN), not O(N&sup2;)); SIFT matching plus two-view
+                bundle adjustment keeps only geometrically verified edges.</p>
+            </div>
+            <div class="step">
+                <div class="num">STEP 02</div>
+                <h3>Nested-dissection partitioning</h3>
+                <p>Symbolic multifrontal elimination produces a balanced cluster tree whose separator cameras
+                double as the overlap needed for merging.</p>
+            </div>
+            <div class="step">
+                <div class="num">STEP 03</div>
+                <h3>Per-cluster reconstruction</h3>
+                <p>VGGT-&Omega; initializes poses and intrinsics for each cluster in parallel; verified SIFT tracks
+                are triangulated and refined with GNC-robust bundle adjustment.</p>
+            </div>
+            <div class="step">
+                <div class="num">STEP 04</div>
+                <h3>Hierarchical merge + global BA</h3>
+                <p>Children register into parents via Sim(3) on shared cameras and tracks, bottom-up to the root;
+                global retriangulation and a final unconstrained BA polish the model.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>Results at a glance</h2>
+        <div class="stats">
+            <div class="stat">
+                <div class="value">&ge;95%</div>
+                <div class="label">images registered on every IMC PhotoTourism scene (100% on two)</div>
+            </div>
+            <div class="stat">
+                <div class="value">5 / 9</div>
+                <div class="label">IMC scenes where we beat GLOMAP at AUC@5&deg; and @10&deg;</div>
+            </div>
+            <div class="stat">
+                <div class="value">2.8%</div>
+                <div class="label">of exhaustive image pairs needed at 1DSfM scale (2,915 images)</div>
+            </div>
+            <div class="stat">
+                <div class="value">1.1%</div>
+                <div class="label">median focal-length error straight from VGGT-&Omega; &mdash; no EXIF needed</div>
+            </div>
+        </div>
+        <p class="muted">
+            Selected relative-pose AUC@10&deg; on IMC PhotoTourism 2023 (no EXIF). Our hierarchical pipeline is
+            competitive with, and often exceeds, optimization-based global SfM:
+        </p>
+        <table>
+            <thead>
+                <tr><th>Scene</th><th>Images</th><th>COLMAP</th><th>GLOMAP</th><th>Ours</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Lincoln Memorial Statue</td><td>214</td><td>75.3</td><td>76.0</td><td class="win">87.3</td></tr>
+                <tr><td>Grand-Place Brussels</td><td>234</td><td>84.2</td><td>84.6</td><td class="win">86.6</td></tr>
+                <tr><td>Sacr&eacute;-C&oelig;ur</td><td>281</td><td>82.8</td><td>83.0</td><td class="win">93.2</td></tr>
+                <tr><td>Sagrada Fam&iacute;lia</td><td>397</td><td>62.9</td><td>62.9</td><td class="win">77.8</td></tr>
+            </tbody>
+        </table>
+        <div class="tbl-note">
+            Full tables, 1DSfM internet-collection results, and ablations are in the paper. Notably, hierarchical
+            partitioning helps even when it is not computationally necessary: on Piazza San Marco, partition +
+            merge + refine outperforms a single VGGT-&Omega; forward pass at every threshold.
+        </div>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>About this visualization</h2>
+        <p class="muted">
+            The interactive demo above is a faithful replay of the pipeline's actual outputs on Grand-Place
+            Brussels: every point cloud shown is a real per-cluster reconstruction from the paper's experiments,
+            and merge events follow the true nested-dissection tree (40 leaf reconstructions fusing through 53
+            merges into the final model). Cluster tiles are laid out with a squareness-optimized recursive
+            subdivision; per-point correspondences between merge levels drive the fusion animation.
+        </p>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>BibTeX</h2>
+        <pre class="bibtex">@inproceedings{anonymous2026hierarchical,
+  title     = {Hierarchical Structure-from-Motion Scales Feedforward Reconstruction},
+  author    = {Anonymous},
+  booktitle = {European Conference on Computer Vision (ECCV), under review},
+  year      = {2026},
+  note      = {Citation will be updated upon publication}
+}</pre>
+    </div>
+</section>
+
+<footer>
+    <div class="wrap">
+        Visualization &amp; site: <a href="https://github.com/nilakarthikesan/visualization-gtsfm-paper">github.com/nilakarthikesan/visualization-gtsfm-paper</a>
+        &middot; Built with Three.js
+    </div>
+</footer>
+
+<script>
+    const frame = document.getElementById('demo-frame');
+    document.querySelectorAll('.demo-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            frame.src = `hierarchy-vggt.html?dataset=${tab.dataset.dataset}&embed=1&v=2`;
+        });
+    });
+</script>
+
 </body>
 </html>

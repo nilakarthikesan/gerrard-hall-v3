@@ -240,7 +240,8 @@ class VGGTHierarchyApp {
     }
 
     initTheme() {
-        this.isDark = localStorage.getItem('gh-theme') === 'dark';
+        const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
+        this.isDark = isEmbed || localStorage.getItem('gh-theme') === 'dark';
         if (this.isDark) {
             document.body.classList.add('dark-theme');
             this.scene.background = new THREE.Color(0x0a0a0a);
