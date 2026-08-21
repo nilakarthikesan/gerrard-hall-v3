@@ -1,5 +1,5 @@
 const SCATTER_RADIUS_MULT = 3.0;
-const CONVERGE_DURATION = 1.8;
+const CONVERGE_DURATION = 0.8;
 const PER_POINT_DELAY_FRAC = 0.3;
 
 export class ConvergenceEngine {
